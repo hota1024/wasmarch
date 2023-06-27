@@ -1,0 +1,21 @@
+pub mod code_section;
+pub mod element_section;
+pub mod export_section;
+pub mod function_section;
+pub mod global_section;
+pub mod import_section;
+pub mod memory_section;
+pub mod start_section;
+pub mod table_section;
+pub mod type_section;
+
+pub use code_section::*;
+pub use element_section::*;
+pub use export_section::*;
+pub use function_section::*;
+pub use global_section::*;
+pub use import_section::*;
+pub use memory_section::*;
+pub use start_section::*;
+pub use table_section::*;
+pub use type_section::*;

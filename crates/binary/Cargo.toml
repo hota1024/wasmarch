@@ -1,5 +1,5 @@
 [package]
-name = "decoder"
+name = "binary"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,3 @@ edition = "2021"
 
 [dependencies]
 types = { path = "../types" }
-binary = { path = "../binary" }
-leb128 = "0.2.5"
-
-[dev-dependencies]
-wabt = "0.10.0"

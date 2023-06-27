@@ -1,7 +1,7 @@
 # wasmarch
 
 Wasmarch is an experimental WebAssembly runtime.
-This repository was crated for learning WebAssembly.
+This repository was created for learning WebAssembly.
 
 ## crates
 
