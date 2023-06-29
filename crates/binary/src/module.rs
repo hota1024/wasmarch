@@ -7,13 +7,13 @@ use crate::sections::{
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Module {
-    custom_section: Option<()>,
-    type_section: Option<TypeSection>,
-    import_section: Option<ImportSection>,
-    function_section: Option<FunctionSection>,
-    memory_section: Option<MemorySection>,
-    global_section: Option<GlobalSection>,
-    export_section: Option<ExportSection>,
-    start_section: Option<StartSection>,
-    element_section: Option<ElementSection>,
+    pub custom_section: Option<()>,
+    pub type_section: Option<TypeSection>,
+    pub import_section: Option<ImportSection>,
+    pub function_section: Option<FunctionSection>,
+    pub memory_section: Option<MemorySection>,
+    pub global_section: Option<GlobalSection>,
+    pub export_section: Option<ExportSection>,
+    pub start_section: Option<StartSection>,
+    pub element_section: Option<ElementSection>,
 }

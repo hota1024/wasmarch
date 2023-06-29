@@ -4,6 +4,6 @@ use crate::{limits::Limits, ref_type::RefType};
 ///
 /// WebAssembly specification: https://webassembly.github.io/spec/core/syntax/types.html#table-types
 pub struct TableType {
-    element_type: RefType,
-    limits: Limits,
+    pub element_type: RefType,
+    pub limits: Limits,
 }
