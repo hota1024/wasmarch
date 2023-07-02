@@ -1,7 +1,11 @@
 use alloc::boxed::Box;
 
-pub struct Code {
+use crate::instruction::Instruction;
+
+#[derive(Debug, PartialEq)]
+pub struct FuncBody {
     pub locals: Box<[types::ValueType]>,
+    pub body: Box<[Instruction]>,
 }
 
-pub type CodeSection = Box<[Code]>;
+pub type CodeSection = Box<[FuncBody]>;

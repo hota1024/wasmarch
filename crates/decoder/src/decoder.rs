@@ -1,6 +1,7 @@
 use crate::{Error, Result, SectionId};
 use binary::{
-    CodeSection, FunctionSection, Import, ImportDesc, ImportSection, Module, Type, TypeSection,
+    instruction::Instruction, CodeSection, FuncBody, FunctionSection, Import, ImportDesc,
+    ImportSection, Module, Type, TypeSection,
 };
 use std::io::{BufReader, Read};
 use types::{FuncType, ValueType};
@@ -45,6 +46,9 @@ impl<R: Read> Decoder<R> {
                 SectionId::Function => {
                     module.function_section = Some(self.decode_function_section()?);
                 }
+                SectionId::Code => {
+                    module.code_section = Some(self.decode_code_section()?);
+                }
                 _ => unimplemented!("Section {:?} is not implemented", id),
             }
         };
@@ -54,10 +58,6 @@ impl<R: Read> Decoder<R> {
             Err(Error::UnexpectedEof) => Ok(module),
             Err(err) => Err(err),
         }
-
-        // module.type_section = self.decode_type_section()?;
-        // module.import_section = self.decode_import_section()?;
-        // module.function_section = self.decode_function_section()?;
     }
 
     fn validate_magic_header(&mut self) -> Result<()> {
@@ -137,7 +137,79 @@ impl<R: Read> Decoder<R> {
         Ok(Box::from(type_indexes))
     }
 
-    fn decode_code_section(&mut self) -> Result<CodeSection> {}
+    fn decode_code_section(&mut self) -> Result<CodeSection> {
+        // println!("decode_code_section");
+        // println!("{:02x}", self.read_size()?); // code length
+        // println!("{:02x}", self.read_size()?); // func size
+        // println!("{:02x}", self.read_size()?); // local length
+        // println!("{:02x}", self.read_u8()?); // i32.const
+        // println!("{}", self.read_i32()?); // i32.const
+        // panic!("end");
+        let codes = self.read_vec(|d| {
+            let size = d.read_size()?;
+            println!("size: {}", size);
+
+            let locals = d.read_vec(|d| {
+                d.read_size()?;
+
+                Ok(ValueType::from(d.read_u8()?))
+            })?;
+
+            let body = d.decode_expr()?;
+            println!("{:?}", body);
+
+            Ok(FuncBody {
+                locals: Box::from(locals),
+                body,
+            })
+        })?;
+
+        // let codes = vec![];
+        Ok(Box::from(codes))
+    }
+
+    fn decode_expr(&mut self) -> Result<Box<[Instruction]>> {
+        let mut instructions = Vec::new();
+
+        loop {
+            let opcode = self.read_u8()?;
+
+            let instr = match opcode {
+                /* variables */
+                0x20 => Instruction::LocalGet {
+                    local_index: self.read_size()?,
+                },
+                0x21 => Instruction::LocalSet {
+                    local_index: self.read_size()?,
+                },
+                0x22 => Instruction::LocalTee {
+                    local_index: self.read_size()?,
+                },
+                0x23 => Instruction::GlobalGet {
+                    global_index: self.read_size()?,
+                },
+                0x24 => Instruction::GlobalSet {
+                    global_index: self.read_size()?,
+                },
+                /* numerics */
+                0x41 => Instruction::I32Const {
+                    value: self.read_i32()?,
+                },
+                0x42 => Instruction::I64Const {
+                    value: self.read_i64()?,
+                },
+                0x43 => Instruction::F32Const { value: todo!() },
+                0x44 => Instruction::F64Const { value: todo!() },
+                0x6a => Instruction::I32Add,
+                0x0b => break,
+                _ => unimplemented!("Opcode {:02x} is not implemented", opcode),
+            };
+
+            instructions.push(instr);
+        }
+
+        Ok(Box::from(instructions))
+    }
 
     fn decode_section(&mut self) -> Result<(SectionId, u32)> {
         let id = self.read_u8()?;
@@ -156,7 +228,7 @@ impl<R: Read> Decoder<R> {
 
         match size_result {
             Ok(size) => Ok(size as u32),
-            Err(_) => Err(Error::InvalidSectionSize),
+            Err(_) => Err(Error::UnexpectedEof),
         }
     }
 
@@ -166,6 +238,24 @@ impl<R: Read> Decoder<R> {
 
         match result {
             Ok(_) => Ok(buf[0]),
+            Err(_) => Err(Error::UnexpectedEof),
+        }
+    }
+
+    fn read_i32(&mut self) -> Result<i32> {
+        let size_result = leb128::read::signed(&mut self.reader);
+
+        match size_result {
+            Ok(size) => Ok(size as i32),
+            Err(_) => Err(Error::UnexpectedEof),
+        }
+    }
+
+    fn read_i64(&mut self) -> Result<i64> {
+        let size_result = leb128::read::signed(&mut self.reader);
+
+        match size_result {
+            Ok(size) => Ok(size),
             Err(_) => Err(Error::UnexpectedEof),
         }
     }

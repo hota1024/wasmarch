@@ -3,6 +3,18 @@ use decoder::{Decoder, Error};
 use types::FuncType;
 use wabt::wat2wasm;
 
+macro_rules! print_wasm {
+    ($wasm:expr) => {
+        println!(
+            "wasm: {:?}",
+            $wasm
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<_>>()
+        );
+    };
+}
+
 #[test]
 fn test_should_returns_error_when_magic_header_is_invalid() {
     let mut wasm = wat2wasm("(module)").expect("Failed to parse wat");
@@ -84,20 +96,24 @@ fn test_should_decode_function_section() {
     let wasm = wat2wasm(
         "
         (module
-            (func $add (param i32 i32) (result i32) i32.const 0)
+            (func $add (param i32 i32) (result i32) local.get 0 local.get 1 i32.add)
         )",
     )
     .expect("Failed to parse wat");
 
-    println!(
-        "wasm: {:?}",
-        wasm.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-    );
-
     let mut decoder = Decoder::new(&wasm[..]);
     let result = decoder.decode().unwrap();
 
-    println!("result: {:?}", result);
+    assert_eq!(result.function_section, Some(Box::from([0])));
+    assert_eq!(
+        result.code_section,
+        Some(Box::from([binary::FuncBody {
+            locals: Box::from([]),
+            body: Box::from([
+                binary::Instruction::LocalGet { local_index: 0 },
+                binary::Instruction::LocalGet { local_index: 1 },
+                binary::Instruction::I32Add,
+            ])
+        }]))
+    )
 }

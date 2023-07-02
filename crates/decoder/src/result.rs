@@ -5,8 +5,6 @@ pub enum Error {
     InvalidMagicHeader,
     InvalidVersion,
     InvalidSectionId(SectionId),
-    InvalidSectionSize,
-
     UnexpectedEof,
 
     InvalidTypeKind,
