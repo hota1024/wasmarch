@@ -138,13 +138,6 @@ impl<R: Read> Decoder<R> {
     }
 
     fn decode_code_section(&mut self) -> Result<CodeSection> {
-        // println!("decode_code_section");
-        // println!("{:02x}", self.read_size()?); // code length
-        // println!("{:02x}", self.read_size()?); // func size
-        // println!("{:02x}", self.read_size()?); // local length
-        // println!("{:02x}", self.read_u8()?); // i32.const
-        // println!("{}", self.read_i32()?); // i32.const
-        // panic!("end");
         let codes = self.read_vec(|d| {
             let size = d.read_size()?;
             println!("size: {}", size);
