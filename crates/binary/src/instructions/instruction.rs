@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::vec::Vec;
 use types::{RefType, ValueType};
 
 use crate::block::Block;
@@ -31,7 +31,7 @@ pub enum Instruction {
         label_index: u32,
     },
     BrTable {
-        label_indexes: Box<[u32]>,
+        label_indexes: Vec<u32>,
     },
     Return,
     Call {

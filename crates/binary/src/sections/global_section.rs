@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::vec::Vec;
 use types::global_type::GlobalType;
 
 /// Global section.
@@ -24,4 +24,4 @@ pub enum GlobalInitExpr {
 /// Global section.
 ///
 /// WebAssembly specification: https://webassembly.github.io/spec/core/binary/modules.html#global-section
-pub type GlobalSection = Box<[Global]>;
+pub type GlobalSection = Vec<Global>;

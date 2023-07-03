@@ -96,12 +96,12 @@ impl<R: Read> Decoder<R> {
             })?;
 
             Ok(Type::Func(FuncType {
-                params: Box::from(param_types),
-                results: Box::from(result_types),
+                params: param_types,
+                results: result_types,
             }))
         })?;
 
-        Ok(Box::from(types))
+        Ok(types)
     }
 
     fn decode_import_section(&mut self) -> Result<ImportSection> {
@@ -125,7 +125,7 @@ impl<R: Read> Decoder<R> {
             })
         })?;
 
-        Ok(Box::from(imports))
+        Ok(imports)
     }
 
     fn decode_function_section(&mut self) -> Result<FunctionSection> {
@@ -134,7 +134,7 @@ impl<R: Read> Decoder<R> {
             Ok(type_index)
         })?;
 
-        Ok(Box::from(type_indexes))
+        Ok(type_indexes)
     }
 
     fn decode_code_section(&mut self) -> Result<CodeSection> {
@@ -158,17 +158,14 @@ impl<R: Read> Decoder<R> {
             let body = d.decode_expr()?;
             println!("{:?}", body);
 
-            Ok(FuncBody {
-                locals: Box::from(locals),
-                body,
-            })
+            Ok(FuncBody { locals, body })
         })?;
 
         // let codes = vec![];
-        Ok(Box::from(codes))
+        Ok(codes)
     }
 
-    fn decode_expr(&mut self) -> Result<Box<[Instruction]>> {
+    fn decode_expr(&mut self) -> Result<Vec<Instruction>> {
         let mut instructions = Vec::new();
 
         loop {
@@ -208,7 +205,7 @@ impl<R: Read> Decoder<R> {
             instructions.push(instr);
         }
 
-        Ok(Box::from(instructions))
+        Ok(instructions)
     }
 
     fn decode_section(&mut self) -> Result<(SectionId, u32)> {

@@ -1,11 +1,11 @@
-use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 use crate::instruction::Instruction;
 
 #[derive(Debug, PartialEq)]
 pub struct FuncBody {
-    pub locals: Box<[types::ValueType]>,
-    pub body: Box<[Instruction]>,
+    pub locals: Vec<types::ValueType>,
+    pub body: Vec<Instruction>,
 }
 
-pub type CodeSection = Box<[FuncBody]>;
+pub type CodeSection = Vec<FuncBody>;

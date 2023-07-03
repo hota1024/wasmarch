@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::vec::Vec;
 use types::func_type::FuncType;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6,4 +6,4 @@ pub enum Type {
     Func(FuncType),
 }
 
-pub type TypeSection = Box<[Type]>;
+pub type TypeSection = Vec<Type>;

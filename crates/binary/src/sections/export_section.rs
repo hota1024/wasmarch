@@ -1,9 +1,9 @@
-use alloc::{boxed::Box, string::String};
+use alloc::{string::String, vec::Vec};
 
 /// Export section.
 ///
 /// WebAssembly specification: https://webassembly.github.io/spec/core/binary/modules.html#export-section
-pub type ExportSection = Box<[Export]>;
+pub type ExportSection = Vec<Export>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Export {

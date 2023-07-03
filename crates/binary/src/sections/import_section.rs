@@ -1,9 +1,9 @@
-use alloc::{boxed::Box, string::String};
+use alloc::{string::String, vec::Vec};
 
 /// Import section.
 ///
 /// WebAssembly specification: https://webassembly.github.io/spec/core/binary/modules.html#binary-importsec
-pub type ImportSection = Box<[Import]>;
+pub type ImportSection = Vec<Import>;
 
 /// Import description.
 ///
