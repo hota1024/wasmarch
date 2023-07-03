@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::instruction::Instruction;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FuncBody {
     pub locals: Vec<types::ValueType>,
     pub body: Vec<Instruction>,

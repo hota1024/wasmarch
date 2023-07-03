@@ -38,16 +38,16 @@ impl<R: Read> Decoder<R> {
 
             match id {
                 SectionId::Type => {
-                    module.type_section = Some(self.decode_type_section()?);
+                    module.type_section = self.decode_type_section()?;
                 }
                 SectionId::Import => {
-                    module.import_section = Some(self.decode_import_section()?);
+                    module.import_section = self.decode_import_section()?;
                 }
                 SectionId::Function => {
-                    module.function_section = Some(self.decode_function_section()?);
+                    module.function_section = self.decode_function_section()?;
                 }
                 SectionId::Code => {
-                    module.code_section = Some(self.decode_code_section()?);
+                    module.code_section = self.decode_code_section()?;
                 }
                 _ => unimplemented!("Section {:?} is not implemented", id),
             }
@@ -139,8 +139,7 @@ impl<R: Read> Decoder<R> {
 
     fn decode_code_section(&mut self) -> Result<CodeSection> {
         let codes = self.read_vec(|d| {
-            let size = d.read_size()?;
-            println!("size: {}", size);
+            d.read_size()?;
 
             let locals = d.read_vec(|d| {
                 d.read_size()?;
@@ -149,7 +148,6 @@ impl<R: Read> Decoder<R> {
             })?;
 
             let body = d.decode_expr()?;
-            println!("{:?}", body);
 
             Ok(FuncBody { locals, body })
         })?;

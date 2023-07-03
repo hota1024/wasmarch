@@ -1,4 +1,5 @@
 use alloc::{string::String, vec::Vec};
+use types::{GlobalType, MemoryType, TableType};
 
 /// Import section.
 ///
@@ -11,6 +12,9 @@ pub type ImportSection = Vec<Import>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ImportDesc {
     Func(u32),
+    Table(TableType),
+    Memory(MemoryType),
+    Global(GlobalType),
 }
 
 /// Import.

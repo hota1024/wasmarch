@@ -3,13 +3,13 @@ use types::{RefType, ValueType};
 
 use crate::block::Block;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MemArg {
     pub align: u32,
     pub offset: u32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /* Controls */
     Unreachable,

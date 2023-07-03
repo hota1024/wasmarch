@@ -10,14 +10,14 @@ use crate::{
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Module {
-    pub custom_section: Option<()>,
-    pub type_section: Option<TypeSection>,
-    pub import_section: Option<ImportSection>,
-    pub function_section: Option<FunctionSection>,
-    pub memory_section: Option<MemorySection>,
-    pub global_section: Option<GlobalSection>,
-    pub export_section: Option<ExportSection>,
-    pub start_section: Option<StartSection>,
-    pub element_section: Option<ElementSection>,
-    pub code_section: Option<CodeSection>,
+    pub custom_section: (),
+    pub type_section: TypeSection,
+    pub import_section: ImportSection,
+    pub function_section: FunctionSection,
+    pub memory_section: MemorySection,
+    pub global_section: GlobalSection,
+    pub export_section: ExportSection,
+    pub start_section: StartSection,
+    pub element_section: ElementSection,
+    pub code_section: CodeSection,
 }

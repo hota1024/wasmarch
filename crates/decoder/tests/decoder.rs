@@ -47,7 +47,7 @@ fn test_should_decode_type_section() {
 
     assert_eq!(
         result.type_section,
-        Some(vec![Type::Func(FuncType {
+        (vec![Type::Func(FuncType {
             params: vec![types::ValueType::I64],
             results: vec![types::ValueType::I32],
         })])
@@ -70,7 +70,7 @@ fn test_should_decode_import_section() {
 
     assert_eq!(
         result.import_section,
-        Some(vec![
+        (vec![
             binary::Import {
                 module: "env".to_string(),
                 field: "add".to_string(),
@@ -98,10 +98,10 @@ fn test_should_decode_function_section() {
     let mut decoder = Decoder::new(&wasm[..]);
     let result = decoder.decode().unwrap();
 
-    assert_eq!(result.function_section, Some(vec![0]));
+    assert_eq!(result.function_section, (vec![0]));
     assert_eq!(
         result.code_section,
-        Some(vec![binary::FuncBody {
+        (vec![binary::FuncBody {
             locals: vec![],
             body: vec![
                 binary::Instruction::LocalGet { local_index: 0 },
