@@ -10,6 +10,7 @@ pub enum Error {
     InvalidTypeKind,
 
     InvalidImportDesc,
+    InvalidExportDesc,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -1,7 +1,7 @@
 use crate::{Error, Result, SectionId};
 use binary::{
-    instruction::Instruction, CodeSection, FuncBody, FunctionSection, Import, ImportDesc,
-    ImportSection, Module, Type, TypeSection,
+    instruction::Instruction, CodeSection, Export, ExportDesc, ExportSection, FuncBody,
+    FunctionSection, Import, ImportDesc, ImportSection, Module, Type, TypeSection,
 };
 use std::io::{BufReader, Read};
 use types::{FuncType, ValueType};
@@ -48,6 +48,9 @@ impl<R: Read> Decoder<R> {
                 }
                 SectionId::Code => {
                     module.code_section = self.decode_code_section()?;
+                }
+                SectionId::Export => {
+                    module.export_section = self.decode_export_section()?;
                 }
                 _ => unimplemented!("Section {:?} is not implemented", id),
             }
@@ -154,6 +157,22 @@ impl<R: Read> Decoder<R> {
 
         // let codes = vec![];
         Ok(codes)
+    }
+
+    fn decode_export_section(&mut self) -> Result<ExportSection> {
+        let exports = self.read_vec(|d| {
+            let name = d.read_name()?;
+            let desc_kind = d.read_u8()?;
+
+            let desc = match desc_kind {
+                0x00 => ExportDesc::Func(d.read_size()?),
+                _ => return Err(Error::InvalidExportDesc),
+            };
+
+            Ok(Export { name, desc })
+        })?;
+
+        Ok(exports)
     }
 
     fn decode_expr(&mut self) -> Result<Vec<Instruction>> {

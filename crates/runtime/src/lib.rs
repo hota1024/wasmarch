@@ -1,3 +1,4 @@
+pub mod frame;
 pub mod instances;
 pub mod result;
 pub mod runtime;

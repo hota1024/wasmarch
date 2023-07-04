@@ -1,11 +1,12 @@
-use binary::{ImportDesc, Module, Type};
-use types::FuncType;
+use binary::{ExportDesc, ImportDesc, Module, Type};
 
 use crate::{
     instances::{
-        DataInst, ElemInst, FuncInst, GlobalInst, HostFuncInst, MemInst, TableInst, WasmFuncInst,
+        DataInst, ElemInst, ExportInst, FuncInst, GlobalInst, HostFuncInst, MemInst, ModuleInst,
+        TableInst, WasmFuncInst,
     },
     result::{Error, Result},
+    value::ExternalVal,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -16,6 +17,7 @@ pub struct Store {
     pub globals: Vec<GlobalInst>,
     pub elems: Vec<ElemInst>,
     pub datas: Vec<DataInst>,
+    pub module: ModuleInst,
 }
 
 impl Store {
@@ -65,7 +67,30 @@ impl Store {
             }
         }
 
-        println!("store: {:?}", store);
+        for export in module.export_section {
+            match export.desc {
+                ExportDesc::Func(func_index) => {
+                    let _func = match store.funcs.get(func_index as usize) {
+                        Some(f) => f,
+                        None => return Err(Error::InvalidIndexForFunc(func_index as usize)),
+                    };
+
+                    store.module.exports.push(ExportInst {
+                        name: export.name,
+                        value: ExternalVal::FuncAddr(func_index as usize),
+                    });
+                }
+                _ => unimplemented!("export {:?}", export.desc),
+            }
+        }
         Ok(store)
+    }
+
+    pub fn get_export_by_name(&self, name: String) -> Option<ExportInst> {
+        self.module
+            .exports
+            .iter()
+            .find(|e| e.name == name)
+            .map(|e| e.clone())
     }
 }
