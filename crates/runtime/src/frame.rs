@@ -2,9 +2,10 @@ use binary::Instruction;
 
 use crate::value::Val;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Frame {
     pub pc: usize,
     pub sp: usize,
-    pub insts: Vec<Instruction>,
+    pub instructions: Vec<Instruction>,
     pub locals: Vec<Val>,
 }

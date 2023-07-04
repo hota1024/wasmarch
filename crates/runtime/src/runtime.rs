@@ -1,4 +1,4 @@
-use binary::{ExportDesc, Module};
+use binary::{ExportDesc, Instruction, Module};
 
 use crate::{
     frame::Frame,
@@ -28,7 +28,6 @@ impl Runtime {
     pub fn invoke(&mut self, name: String, args: Vec<Val>) -> Result<Val> {
         // let func = self.store.funcs.get()
         let e = self.store.get_export_by_name(name).unwrap();
-        println!("e: {:?}", e);
 
         let ExternalVal::FuncAddr(func_index) = e.value else {
             panic!("not a func");
@@ -45,16 +44,23 @@ impl Runtime {
                 let locals = self
                     .stack
                     .split_off(self.stack.len() - wasm_func.func_type.params.len());
+                let has_results = wasm_func.func_type.results.len() > 0;
                 let frame = Frame {
                     pc: 0,
                     sp: 0,
-                    insts: wasm_func.code.body,
+                    instructions: wasm_func.code.body.clone(),
                     locals,
                 };
 
                 self.call_frames.push(frame);
 
-                return self.execute();
+                self.execute()?;
+
+                if has_results {
+                    let result = self.stack.pop().unwrap();
+
+                    return Ok(result);
+                }
             }
             _ => unimplemented!("func: {:?}", func),
         }
@@ -62,7 +68,34 @@ impl Runtime {
         Ok(Val::I32(0))
     }
 
-    fn execute(&mut self) -> Result<Val> {}
+    fn execute(&mut self) -> Result<()> {
+        loop {
+            let frame = self.call_frames.last_mut().unwrap();
+            let Some(inst) = frame.instructions.get(frame.pc) else {
+                break;
+            };
+            frame.pc += 1;
+
+            match inst {
+                Instruction::LocalGet { local_index } => {
+                    let val = frame.locals[*local_index as usize].clone();
+                    self.stack.push(val);
+                }
+                Instruction::I32Add => {
+                    let val1 = self.stack.pop().unwrap();
+                    let val2 = self.stack.pop().unwrap();
+                    let result = match (val1, val2) {
+                        (Val::I32(val1), Val::I32(val2)) => Val::I32(val1 + val2),
+                        _ => unimplemented!(),
+                    };
+                    self.stack.push(result);
+                }
+                _ => unimplemented!("inst: {:?}", inst),
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -72,14 +105,12 @@ mod tests {
     use wabt::wat2wasm;
 
     #[test]
-    fn test() {
-        let wasm = wat2wasm(
-            "
+    fn add() {
+        let source = "
         (module
             (func (export \"add\") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add)
-        )",
-        )
-        .unwrap();
+        )";
+        let wasm = wat2wasm(source).unwrap();
 
         let mut decoder = Decoder::new(&wasm[..]);
         let module = decoder.decode().unwrap();
@@ -89,6 +120,46 @@ mod tests {
             .invoke("add".to_string(), vec![Val::I32(1), Val::I32(2)])
             .unwrap();
 
+        println!("source: {}", source);
+        println!("frame: {:?}", runtime.call_frames);
+        println!("result: {:?}", result);
+    }
+
+    #[test]
+    fn fib() {
+        let source = "
+        (module
+            (func $fib (export \"fib\") (param i32) (result i32)
+                local.get 0
+                i32.const 2
+                i32.lt_s
+                if (result i32)
+                    local.get 0
+                else
+                    local.get 0
+                    i32.const 1
+                    i32.sub
+                    call $fib
+                    local.get 0
+                    i32.const 2
+                    i32.sub
+                    call $fib
+                    i32.add
+                end
+            )
+        )";
+        let wasm = wat2wasm(source).unwrap();
+
+        let mut decoder = Decoder::new(&wasm[..]);
+        let module = decoder.decode().unwrap();
+
+        let mut runtime = Runtime::from(module);
+        let result = runtime
+            .invoke("add".to_string(), vec![Val::I32(1), Val::I32(2)])
+            .unwrap();
+
+        println!("source: {}", source);
+        println!("frame: {:?}", runtime.call_frames);
         println!("result: {:?}", result);
     }
 }
