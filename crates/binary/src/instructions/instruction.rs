@@ -37,6 +37,7 @@ pub enum Instruction {
     Call {
         func_index: u32,
     },
+    End,
     CallIndirect {
         type_index: u32,
         table_index: u32,

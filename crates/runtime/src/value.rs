@@ -7,6 +7,15 @@ pub enum Val {
     None,
 }
 
+impl Val {
+    pub fn is_true(&self) -> bool {
+        match self {
+            Val::I32(val) => *val != 0,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExternalVal {
     FuncAddr(usize),

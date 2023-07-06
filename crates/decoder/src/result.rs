@@ -7,6 +7,8 @@ pub enum Error {
     InvalidSectionId(SectionId),
     UnexpectedEof,
 
+    InvalidBlockType,
+
     InvalidTypeKind,
 
     InvalidImportDesc,

@@ -1,7 +1,7 @@
 use crate::{Error, Result, SectionId};
 use binary::{
-    instruction::Instruction, CodeSection, Export, ExportDesc, ExportSection, FuncBody,
-    FunctionSection, Import, ImportDesc, ImportSection, Module, Type, TypeSection,
+    instruction::Instruction, Block, BlockType, CodeSection, Export, ExportDesc, ExportSection,
+    FuncBody, FunctionSection, Import, ImportDesc, ImportSection, Module, Type, TypeSection,
 };
 use std::io::{BufReader, Read};
 use types::{FuncType, ValueType};
@@ -150,7 +150,7 @@ impl<R: Read> Decoder<R> {
                 Ok(ValueType::from(d.read_u8()?))
             })?;
 
-            let body = d.decode_expr()?;
+            let body = d.read_instructions()?;
 
             Ok(FuncBody { locals, body })
         })?;
@@ -175,13 +175,42 @@ impl<R: Read> Decoder<R> {
         Ok(exports)
     }
 
-    fn decode_expr(&mut self) -> Result<Vec<Instruction>> {
+    fn read_instructions(&mut self) -> Result<Vec<Instruction>> {
         let mut instructions = Vec::new();
 
         loop {
             let opcode = self.read_u8()?;
+            let mut is_end = false;
 
             let instr = match opcode {
+                0x00 => Instruction::Unreachable,
+                0x01 => Instruction::Nop,
+                0x02 => Instruction::Block {
+                    block: Block {
+                        block_type: self.read_block_type()?,
+                        body: self.read_instructions()?,
+                    },
+                },
+                0x03 => Instruction::Loop {
+                    block: Block {
+                        block_type: self.read_block_type()?,
+                        body: self.read_instructions()?,
+                    },
+                },
+                0x04 => Instruction::If {
+                    block: Block {
+                        block_type: self.read_block_type()?,
+                        body: self.read_instructions()?,
+                    },
+                },
+                0x05 => Instruction::Else,
+                0x10 => Instruction::Call {
+                    func_index: self.read_size()?,
+                },
+                0x0b => {
+                    is_end = true;
+                    Instruction::End
+                }
                 /* variables */
                 0x20 => Instruction::LocalGet {
                     local_index: self.read_size()?,
@@ -207,15 +236,33 @@ impl<R: Read> Decoder<R> {
                 },
                 0x43 => Instruction::F32Const { value: todo!() },
                 0x44 => Instruction::F64Const { value: todo!() },
+                0x48 => Instruction::I32LtS,
                 0x6a => Instruction::I32Add,
-                0x0b => break,
-                _ => unimplemented!("Opcode {:02x} is not implemented", opcode),
+                0x6b => Instruction::I32Sub,
+                _ => unimplemented!("Opcode 0x{:02x} is not implemented", opcode),
             };
 
             instructions.push(instr);
+
+            if is_end {
+                break;
+            }
         }
 
         Ok(instructions)
+    }
+
+    fn read_block_type(&mut self) -> Result<BlockType> {
+        let type_id = self.read_u8()?;
+
+        match type_id {
+            0x40 => Ok(BlockType::Empty),
+            0x7f => Ok(BlockType::Value(ValueType::I32)),
+            0x7e => Ok(BlockType::Value(ValueType::I64)),
+            0x7d => Ok(BlockType::Value(ValueType::F32)),
+            0x7c => Ok(BlockType::Value(ValueType::F64)),
+            _ => Err(Error::InvalidBlockType),
+        }
     }
 
     fn decode_section(&mut self) -> Result<(SectionId, u32)> {
