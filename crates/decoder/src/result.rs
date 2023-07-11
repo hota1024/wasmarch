@@ -1,6 +1,6 @@
 use crate::SectionId;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     InvalidMagicHeader,
     InvalidVersion,

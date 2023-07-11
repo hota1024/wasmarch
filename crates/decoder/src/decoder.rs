@@ -152,7 +152,7 @@ impl<R: Read> Decoder<R> {
 
             let body = d.read_instructions()?;
 
-            Ok(FuncBody { locals, body })
+            Ok(FuncBody { locals, code: body })
         })?;
 
         // let codes = vec![];

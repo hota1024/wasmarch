@@ -1,3 +1,5 @@
+use types::ValueType;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Val {
     I32(i32),
@@ -12,6 +14,15 @@ impl Val {
         match self {
             Val::I32(val) => *val != 0,
             _ => false,
+        }
+    }
+
+    pub fn default_of(ty: &ValueType) -> Self {
+        match ty {
+            ValueType::I32 => Val::I32(0),
+            ValueType::I64 => Val::I64(0),
+            ValueType::F32 => Val::F32(0.0),
+            ValueType::F64 => Val::F64(0.0),
         }
     }
 }

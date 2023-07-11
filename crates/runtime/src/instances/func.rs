@@ -2,20 +2,19 @@ use binary::FuncBody;
 use types::FuncType;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct WasmFuncInst {
+pub struct InternalFuncInst {
     pub func_type: FuncType,
     // pub module: ModuleInst,
-    pub code: FuncBody,
+    pub body: FuncBody,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct HostFuncInst {
+pub struct ExternalFuncInst {
     pub func_type: FuncType,
-    // TODO: hostcode
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FuncInst {
-    Wasm(WasmFuncInst),
-    Host(HostFuncInst),
+    Internal(InternalFuncInst),
+    External(ExternalFuncInst),
 }

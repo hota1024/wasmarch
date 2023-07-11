@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use types::FuncType;
 
 use super::export::ExportInst;
@@ -11,5 +13,5 @@ pub struct ModuleInst {
     pub global_addrs: Vec<usize>,
     pub elem_addrs: Vec<usize>,
     pub data_addrs: Vec<usize>,
-    pub exports: Vec<ExportInst>,
+    pub exports: HashMap<String, ExportInst>,
 }

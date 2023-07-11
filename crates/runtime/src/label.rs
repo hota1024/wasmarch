@@ -9,7 +9,7 @@ pub enum LabelKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Label {
-    pub kind: LabelKind,
     pub pc: usize,
+    pub kind: LabelKind,
     pub result_type: BlockType,
 }

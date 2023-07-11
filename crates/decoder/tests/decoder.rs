@@ -103,7 +103,7 @@ fn test_should_decode_function_section() {
         result.code_section,
         (vec![binary::FuncBody {
             locals: vec![],
-            body: vec![
+            code: vec![
                 binary::Instruction::LocalGet { local_index: 0 },
                 binary::Instruction::LocalGet { local_index: 1 },
                 binary::Instruction::I32Add,
