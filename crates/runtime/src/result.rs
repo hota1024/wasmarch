@@ -5,6 +5,7 @@ pub enum Error {
     InvalidIndexForFuncType(usize),
     InvalidIndexForCode(usize),
     IfConditionShouldBeI32,
+    UnexpectedEndOfInput,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -1,6 +1,6 @@
 use binary::Instruction;
 
-use crate::value::Val;
+use crate::{label::Label, value::Val};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Frame {
@@ -8,4 +8,5 @@ pub struct Frame {
     pub sp: usize,
     pub instructions: Vec<Instruction>,
     pub locals: Vec<Val>,
+    pub label_stack: Vec<Label>,
 }

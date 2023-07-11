@@ -188,19 +188,16 @@ impl<R: Read> Decoder<R> {
                 0x02 => Instruction::Block {
                     block: Block {
                         block_type: self.read_block_type()?,
-                        body: self.read_instructions()?,
                     },
                 },
                 0x03 => Instruction::Loop {
                     block: Block {
                         block_type: self.read_block_type()?,
-                        body: self.read_instructions()?,
                     },
                 },
                 0x04 => Instruction::If {
                     block: Block {
                         block_type: self.read_block_type()?,
-                        body: self.read_instructions()?,
                     },
                 },
                 0x05 => Instruction::Else,

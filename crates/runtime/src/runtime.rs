@@ -3,6 +3,7 @@ use binary::{ExportDesc, Instruction, Module};
 use crate::{
     frame::Frame,
     instances::FuncInst,
+    label::{Label, LabelKind},
     result::{Error, Result},
     store::Store,
     value::{ExternalVal, Val},
@@ -50,6 +51,7 @@ impl Runtime {
                     sp: 0,
                     instructions: wasm_func.code.body.clone(),
                     locals,
+                    label_stack: vec![],
                 };
 
                 self.call_frames.push(frame);
@@ -70,47 +72,49 @@ impl Runtime {
 
     fn execute(&mut self) -> Result<()> {
         loop {
-            let frame = self.call_frames.last_mut().unwrap();
-            let Some(inst) = frame.instructions.get(frame.pc) else {
+            let Some(frame) = self.call_frames.last_mut() else {
                 break;
             };
-            frame.pc += 1;
+            let instructions = &frame.instructions;
+            let Some(inst) = instructions.get(frame.pc) else {
+                break;
+            };
+            let mut next_pc = frame.pc + 1;
 
-            println!("inst: {:?}", inst);
+            println!("inst[{}]: {:?}", frame.pc, inst);
 
             match inst {
-                Instruction::If { block } => {}
-                Instruction::Else => {}
-                Instruction::Call { func_index } => {
-                    let func = self.store.funcs.get(*func_index as usize).unwrap();
-                    match func {
-                        FuncInst::Host(host_func) => todo!(),
-                        FuncInst::Wasm(wasm_func) => {
-                            let locals = self
-                                .stack
-                                .split_off(self.stack.len() - wasm_func.func_type.params.len());
-                            let has_results = wasm_func.func_type.results.len() > 0;
-                            let frame = Frame {
-                                pc: 0,
-                                sp: 0,
-                                instructions: wasm_func.code.body.clone(),
-                                locals,
-                            };
+                Instruction::If { block } => {
+                    let val = self.stack.pop().unwrap();
 
-                            self.call_frames.push(frame);
+                    let end_pc = get_corresponding_end(&frame.instructions, frame.pc)?;
 
-                            self.execute()?;
-
-                            println!("stack: {:?}", self.stack);
-
-                            // if has_results {
-                            //     let result = self.stack.pop().unwrap();
-
-                            //     self.stack.push(result);
-                            // }
-                        }
+                    if !val.is_true() {
+                        next_pc = get_corresponding_end_or_else(&frame.instructions, frame.pc)?;
+                        println!("next_pc: {:?}", next_pc);
                     }
+
+                    let label = Label {
+                        kind: LabelKind::If,
+                        pc: end_pc,
+                        result_type: block.block_type.clone(),
+                    };
+                    frame.label_stack.push(label);
                 }
+                Instruction::Else => {
+                    let label = frame.label_stack.pop().unwrap();
+
+                    next_pc = label.pc;
+                }
+                Instruction::End => match frame.label_stack.pop() {
+                    Some(label) => {
+                        next_pc = label.pc;
+                    }
+                    None => {
+                        // let frame = self.call_frames.pop().unwrap();
+                    }
+                },
+                Instruction::Call { func_index } => {}
                 Instruction::LocalGet { local_index } => {
                     let val = frame.locals[*local_index as usize].clone();
                     self.stack.push(val);
@@ -149,9 +153,70 @@ impl Runtime {
                 }
                 _ => unimplemented!("inst: {:?}", inst),
             }
+
+            frame.pc = next_pc;
         }
 
         Ok(())
+    }
+}
+
+fn get_corresponding_end_or_else(instructions: &[Instruction], pc: usize) -> Result<usize> {
+    let mut pc = pc;
+    let mut depth = 0;
+
+    loop {
+        pc += 1;
+
+        if let Some(inst) = instructions.get(pc) {
+            match inst {
+                Instruction::If { .. } => {
+                    depth += 1;
+                }
+                Instruction::Else => {
+                    if depth == 0 {
+                        return Ok(pc);
+                    }
+                }
+                Instruction::End => {
+                    if depth == 0 {
+                        return Ok(pc);
+                    } else {
+                        depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+        } else {
+            return Err(Error::UnexpectedEndOfInput);
+        }
+    }
+}
+
+fn get_corresponding_end(instructions: &[Instruction], pc: usize) -> Result<usize> {
+    let mut pc = pc;
+    let mut depth = 0;
+
+    loop {
+        pc += 1;
+
+        if let Some(inst) = instructions.get(pc) {
+            match inst {
+                Instruction::If { .. } | Instruction::Block { .. } | Instruction::Loop { .. } => {
+                    depth += 1;
+                }
+                Instruction::End => {
+                    if depth == 0 {
+                        return Ok(pc);
+                    } else {
+                        depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+        } else {
+            return Err(Error::UnexpectedEndOfInput);
+        }
     }
 }
 
@@ -192,7 +257,7 @@ mod tests {
                 if (result i32)
                     i32.const 2
                 else
-                    i32.const 3 
+                    i32.const 3
                 end
             )
         )";
