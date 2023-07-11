@@ -1,0 +1,3 @@
+[submodule "crates/runtime/tests/testsuite"]
+	path = crates/runtime/tests/testsuite
+	url = https://github.com/WebAssembly/testsuite
