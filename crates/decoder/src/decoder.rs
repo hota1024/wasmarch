@@ -1,10 +1,11 @@
 use crate::{Error, Result, SectionId};
 use binary::{
     instruction::Instruction, Block, BlockType, CodeSection, Export, ExportDesc, ExportSection,
-    FuncBody, FunctionSection, Import, ImportDesc, ImportSection, Module, Type, TypeSection,
+    FuncBody, FunctionSection, Import, ImportDesc, ImportSection, MemArg, Module, Type,
+    TypeSection,
 };
 use std::io::{BufReader, Read};
-use types::{FuncType, ValueType};
+use types::{FuncType, RefType, ValueType};
 
 pub struct Decoder<R> {
     reader: BufReader<R>,
@@ -142,13 +143,22 @@ impl<R: Read> Decoder<R> {
 
     fn decode_code_section(&mut self) -> Result<CodeSection> {
         let codes = self.read_vec(|d| {
-            d.read_size()?;
+            let func_size = d.read_size()?;
+            let bytes = d.read_bytes(func_size as usize)?;
+            let mut d = Decoder::new(bytes.as_slice());
 
-            let locals = d.read_vec(|d| {
-                d.read_size()?;
+            let local_decls = d.read_vec(|d| {
+                let mut locals = vec![];
+                let locals_count = d.read_size()?;
+                let ty = ValueType::from(d.read_u8()?);
 
-                Ok(ValueType::from(d.read_u8()?))
+                for _ in 0..locals_count {
+                    locals.push(ty.clone());
+                }
+
+                Ok(locals)
             })?;
+            let locals = local_decls.into_iter().flatten().collect();
 
             let body = d.read_instructions()?;
 
@@ -179,10 +189,19 @@ impl<R: Read> Decoder<R> {
         let mut instructions = Vec::new();
 
         loop {
-            let opcode = self.read_u8()?;
-            let mut is_end = false;
+            let opcode = match self.read_u8() {
+                Ok(opcode) => opcode,
+                Err(err) => {
+                    if err == Error::UnexpectedEof {
+                        break;
+                    }
+
+                    return Err(err);
+                }
+            };
 
             let instr = match opcode {
+                // control instructions
                 0x00 => Instruction::Unreachable,
                 0x01 => Instruction::Nop,
                 0x02 => Instruction::Block {
@@ -201,14 +220,40 @@ impl<R: Read> Decoder<R> {
                     },
                 },
                 0x05 => Instruction::Else,
+                0x0B => Instruction::End,
+                0x0C => Instruction::Br {
+                    level: self.read_size()?,
+                },
+                0x0D => Instruction::BrIf {
+                    level: self.read_size()?,
+                },
+                0xE => Instruction::BrTable {
+                    label_indexes: self.read_vec(|d| d.read_size())?,
+                    default_index: self.read_size()?,
+                },
+                0x0F => Instruction::Return,
                 0x10 => Instruction::Call {
                     func_index: self.read_size()?,
                 },
-                0x0b => {
-                    is_end = true;
-                    Instruction::End
-                }
-                /* variables */
+                0x11 => Instruction::CallIndirect {
+                    type_index: self.read_size()?,
+                    table_index: self.read_size()?,
+                },
+                // reference instructions
+                0xD0 => Instruction::RefNull {
+                    ref_type: self.read_reference_type()?,
+                },
+                0xD1 => Instruction::RefIsNull,
+                0xD2 => Instruction::RefFunc {
+                    func_index: self.read_size()?,
+                },
+                // parametric instructions
+                0x1A => Instruction::Drop,
+                0x1B => Instruction::Select { result_types: None },
+                0x1C => Instruction::Select {
+                    result_types: Some(self.read_vec(|d| Ok(ValueType::from(d.read_u8()?)))?),
+                },
+                // variable instructions
                 0x20 => Instruction::LocalGet {
                     local_index: self.read_size()?,
                 },
@@ -224,6 +269,145 @@ impl<R: Read> Decoder<R> {
                 0x24 => Instruction::GlobalSet {
                     global_index: self.read_size()?,
                 },
+                // table instructions
+                0x25 => Instruction::TableGet {
+                    table_index: self.read_size()?,
+                },
+                0x26 => Instruction::TableSet {
+                    table_index: self.read_size()?,
+                },
+                0xFC => {
+                    let id = self.read_size()?;
+
+                    match id {
+                        8 => {
+                            let inst = Instruction::MemoryInit {
+                                data_index: self.read_size()?,
+                            };
+
+                            self.read_u8()?; // 0x00
+
+                            inst
+                        }
+                        9 => Instruction::DataDrop {
+                            data_index: self.read_size()?,
+                        },
+                        10 => {
+                            let inst = Instruction::MemoryCopy;
+
+                            self.read_u8()?; // 0x00
+                            self.read_u8()?; // 0x00
+
+                            inst
+                        }
+                        11 => {
+                            let inst = Instruction::MemoryFill;
+
+                            self.read_u8()?; // 0x00
+
+                            inst
+                        }
+                        12 => Instruction::TableInit {
+                            element_index: self.read_size()?,
+                            table_index: self.read_size()?,
+                        },
+                        13 => Instruction::ElemDrop {
+                            element_index: self.read_size()?,
+                        },
+                        14 => Instruction::TableCopy {
+                            dst_table_index: self.read_size()?,
+                            src_table_index: self.read_size()?,
+                        },
+                        15 => Instruction::TableGrow {
+                            table_index: self.read_size()?,
+                        },
+                        16 => Instruction::TableSize {
+                            table_index: self.read_size()?,
+                        },
+                        17 => Instruction::TableFill {
+                            table_index: self.read_size()?,
+                        },
+                        _ => return Err(Error::InvalidSubInstrId),
+                    }
+                }
+                // memory instructions
+                0x28 => Instruction::I32Load {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x29 => Instruction::I64Load {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2A => Instruction::F32Load {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2B => Instruction::F64Load {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2C => Instruction::I32Load8S {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2D => Instruction::I32Load8U {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2E => Instruction::I32Load16S {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x2F => Instruction::I32Load16U {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x30 => Instruction::I64Load8S {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x31 => Instruction::I64Load8U {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x32 => Instruction::I64Load16S {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x33 => Instruction::I64Load16U {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x34 => Instruction::I64Load32S {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x35 => Instruction::I64Load32U {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x36 => Instruction::I32Store {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x37 => Instruction::I64Store {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x38 => Instruction::F32Store {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x39 => Instruction::F64Store {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3A => Instruction::I32Store8 {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3B => Instruction::I32Store16 {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3C => Instruction::I64Store8 {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3D => Instruction::I64Store16 {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3E => Instruction::I64Store32 {
+                    mem_arg: self.read_mem_arg()?,
+                },
+                0x3F => {
+                    self.read_u8()?;
+                    Instruction::MemorySize
+                }
+                0x40 => {
+                    self.read_u8()?;
+                    Instruction::MemoryGrow
+                }
                 /* numerics */
                 0x41 => Instruction::I32Const {
                     value: self.read_i32()?,
@@ -231,22 +415,164 @@ impl<R: Read> Decoder<R> {
                 0x42 => Instruction::I64Const {
                     value: self.read_i64()?,
                 },
-                0x43 => Instruction::F32Const { value: todo!() },
-                0x44 => Instruction::F64Const { value: todo!() },
+                0x43 => Instruction::F32Const {
+                    value: self.read_f32()?,
+                },
+                0x44 => Instruction::F64Const {
+                    value: self.read_f64()?,
+                },
+                0x45 => Instruction::I32Eqz,
+                0x46 => Instruction::I32Eq,
+                0x47 => Instruction::I32Ne,
                 0x48 => Instruction::I32LtS,
-                0x6a => Instruction::I32Add,
-                0x6b => Instruction::I32Sub,
+                0x49 => Instruction::I32LtU,
+                0x4A => Instruction::I32GtS,
+                0x4B => Instruction::I32GtU,
+                0x4C => Instruction::I32LeS,
+                0x4D => Instruction::I32LeU,
+                0x4E => Instruction::I32GeS,
+                0x4F => Instruction::I32GeU,
+                0x50 => Instruction::I64Eqz,
+                0x51 => Instruction::I64Eq,
+                0x52 => Instruction::I64Ne,
+                0x53 => Instruction::I64LtS,
+                0x54 => Instruction::I64LtU,
+                0x55 => Instruction::I64GtS,
+                0x56 => Instruction::I64GtU,
+                0x57 => Instruction::I64LeS,
+                0x58 => Instruction::I64LeU,
+                0x59 => Instruction::I64GeS,
+                0x5A => Instruction::I64GeU,
+                0x5B => Instruction::F32Eq,
+                0x5C => Instruction::F32Ne,
+                0x5D => Instruction::F32Lt,
+                0x5E => Instruction::F32Gt,
+                0x5F => Instruction::F32Le,
+                0x60 => Instruction::F32Ge,
+                0x61 => Instruction::F64Eq,
+                0x62 => Instruction::F64Ne,
+                0x63 => Instruction::F64Lt,
+                0x64 => Instruction::F64Gt,
+                0x65 => Instruction::F64Le,
+                0x66 => Instruction::F64Ge,
+                0x67 => Instruction::I32Clz,
+                0x68 => Instruction::I32Ctz,
+                0x69 => Instruction::I32Popcnt,
+                0x6A => Instruction::I32Add,
+                0x6B => Instruction::I32Sub,
+                0x6C => Instruction::I32Mul,
+                0x6D => Instruction::I32DivS,
+                0x6E => Instruction::I32DivU,
+                0x6F => Instruction::I32RemS,
+                0x70 => Instruction::I32RemU,
+                0x71 => Instruction::I32And,
+                0x72 => Instruction::I32Or,
+                0x73 => Instruction::I32Xor,
+                0x74 => Instruction::I32Shl,
+                0x75 => Instruction::I32ShrS,
+                0x76 => Instruction::I32ShrU,
+                0x77 => Instruction::I32Rotl,
+                0x78 => Instruction::I32Rotr,
+                0x79 => Instruction::I64Clz,
+                0x7A => Instruction::I64Ctz,
+                0x7B => Instruction::I64Popcnt,
+                0x7C => Instruction::I64Add,
+                0x7D => Instruction::I64Sub,
+                0x7E => Instruction::I64Mul,
+                0x7F => Instruction::I64DivS,
+                0x80 => Instruction::I64DivU,
+                0x81 => Instruction::I64RemS,
+                0x82 => Instruction::I64RemU,
+                0x83 => Instruction::I64And,
+                0x84 => Instruction::I64Or,
+                0x85 => Instruction::I64Xor,
+                0x86 => Instruction::I64Shl,
+                0x87 => Instruction::I64ShrS,
+                0x88 => Instruction::I64ShrU,
+                0x89 => Instruction::I64Rotl,
+                0x8A => Instruction::I64Rotr,
+                0x8B => Instruction::F32Abs,
+                0x8C => Instruction::F32Neg,
+                0x8D => Instruction::F32Ceil,
+                0x8E => Instruction::F32Floor,
+                0x8F => Instruction::F32Trunc,
+                0x90 => Instruction::F32Nearest,
+                0x91 => Instruction::F32Sqrt,
+                0x92 => Instruction::F32Add,
+                0x93 => Instruction::F32Sub,
+                0x94 => Instruction::F32Mul,
+                0x95 => Instruction::F32Div,
+                0x96 => Instruction::F32Min,
+                0x97 => Instruction::F32Max,
+                0x98 => Instruction::F32Copysign,
+                0x99 => Instruction::F64Abs,
+                0x9A => Instruction::F64Neg,
+                0x9B => Instruction::F64Ceil,
+                0x9C => Instruction::F64Floor,
+                0x9D => Instruction::F64Trunc,
+                0x9E => Instruction::F64Nearest,
+                0x9F => Instruction::F64Sqrt,
+                0xA0 => Instruction::F64Add,
+                0xA1 => Instruction::F64Sub,
+                0xA2 => Instruction::F64Mul,
+                0xA3 => Instruction::F64Div,
+                0xA4 => Instruction::F64Min,
+                0xA5 => Instruction::F64Max,
+                0xA6 => Instruction::F64Copysign,
+                0xA7 => Instruction::I32WrapI64,
+                0xA8 => Instruction::I32TruncF32S,
+                0xA9 => Instruction::I32TruncF32U,
+                0xAA => Instruction::I32TruncF64S,
+                0xAB => Instruction::I32TruncF64U,
+                0xAC => Instruction::I64ExtendI32S,
+                0xAD => Instruction::I64ExtendI32U,
+                0xAE => Instruction::I64TruncF32S,
+                0xAF => Instruction::I64TruncF32U,
+                0xB0 => Instruction::I64TruncF64S,
+                0xB1 => Instruction::I64TruncF64U,
+                0xB2 => Instruction::F32ConvertI32S,
+                0xB3 => Instruction::F32ConvertI32U,
+                0xB4 => Instruction::F32ConvertI64S,
+                0xB5 => Instruction::F32ConvertI64U,
+                0xB6 => Instruction::F32DemoteF64,
+                0xB7 => Instruction::F64ConvertI32S,
+                0xB8 => Instruction::F64ConvertI32U,
+                0xB9 => Instruction::F64ConvertI64S,
+                0xBA => Instruction::F64ConvertI64U,
+                0xBB => Instruction::F64PromoteF32,
+                0xBC => Instruction::I32ReinterpretF32,
+                0xBD => Instruction::I64ReinterpretF64,
+                0xBE => Instruction::F32ReinterpretI32,
+                0xBF => Instruction::F64ReinterpretI64,
+                0xC0 => Instruction::I32Extend8S,
+                0xC1 => Instruction::I32Extend16S,
+                0xC2 => Instruction::I64Extend8S,
+                0xC3 => Instruction::I64Extend16S,
+                0xC4 => Instruction::I64Extend32S,
                 _ => unimplemented!("Opcode 0x{:02x} is not implemented", opcode),
             };
 
             instructions.push(instr);
-
-            if is_end {
-                break;
-            }
         }
 
         Ok(instructions)
+    }
+
+    fn read_mem_arg(&mut self) -> Result<MemArg> {
+        Ok(MemArg {
+            align: self.read_size()?,
+            offset: self.read_size()?,
+        })
+    }
+
+    fn read_reference_type(&mut self) -> Result<RefType> {
+        let type_id = self.read_u8()?;
+
+        match type_id {
+            0x70 => Ok(RefType::FuncRef),
+            0x6F => Ok(RefType::ExternRef),
+            _ => Err(Error::InvalidRefType),
+        }
     }
 
     fn read_block_type(&mut self) -> Result<BlockType> {
@@ -254,10 +580,10 @@ impl<R: Read> Decoder<R> {
 
         match type_id {
             0x40 => Ok(BlockType::Empty),
-            0x7f => Ok(BlockType::Value(ValueType::I32)),
-            0x7e => Ok(BlockType::Value(ValueType::I64)),
-            0x7d => Ok(BlockType::Value(ValueType::F32)),
-            0x7c => Ok(BlockType::Value(ValueType::F64)),
+            0x7f => Ok(BlockType::Value(vec![ValueType::I32])),
+            0x7e => Ok(BlockType::Value(vec![ValueType::I64])),
+            0x7d => Ok(BlockType::Value(vec![ValueType::F32])),
+            0x7c => Ok(BlockType::Value(vec![ValueType::F64])),
             _ => Err(Error::InvalidBlockType),
         }
     }
@@ -279,6 +605,16 @@ impl<R: Read> Decoder<R> {
 
         match size_result {
             Ok(size) => Ok(size as u32),
+            Err(_) => Err(Error::UnexpectedEof),
+        }
+    }
+
+    fn read_bytes(&mut self, size: usize) -> Result<Vec<u8>> {
+        let mut bytes = vec![0; size];
+        let result = self.reader.read_exact(&mut bytes);
+
+        match result {
+            Ok(_) => Ok(bytes),
             Err(_) => Err(Error::UnexpectedEof),
         }
     }
@@ -307,6 +643,26 @@ impl<R: Read> Decoder<R> {
 
         match size_result {
             Ok(size) => Ok(size),
+            Err(_) => Err(Error::UnexpectedEof),
+        }
+    }
+
+    fn read_f32(&mut self) -> Result<f32> {
+        let mut buf = [0; 4];
+        let result = self.reader.read_exact(&mut buf);
+
+        match result {
+            Ok(_) => Ok(f32::from_le_bytes(buf)),
+            Err(_) => Err(Error::UnexpectedEof),
+        }
+    }
+
+    fn read_f64(&mut self) -> Result<f64> {
+        let mut buf = [0; 8];
+        let result = self.reader.read_exact(&mut buf);
+
+        match result {
+            Ok(_) => Ok(f64::from_le_bytes(buf)),
             Err(_) => Err(Error::UnexpectedEof),
         }
     }

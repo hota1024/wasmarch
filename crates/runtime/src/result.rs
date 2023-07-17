@@ -8,11 +8,24 @@ pub enum Error {
     InvalidIndexForFunc(usize),
     InvalidIndexForFuncType(usize),
     InvalidIndexForCode(usize),
+
+    Trapped,
+
+    ExpectedInstruction,
+    ExpectedValue,
+    ExpectedLabel,
     IfConditionShouldBeI32,
+
+    LocalNotFound,
 
     // invoke
     ExportNotFound(String),
     ExpectFuncAddr(ExportInst),
+
+    // operations
+    UndefinedBinaryOp,
+
+    EmptyCallStack(String),
 
     UnexpectedEndOfInput,
 }

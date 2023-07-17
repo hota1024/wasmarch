@@ -3,6 +3,7 @@ use decoder::{Decoder, Error};
 use types::FuncType;
 use wabt::wat2wasm;
 
+#[allow(unused_macros)]
 macro_rules! print_wasm {
     ($wasm:expr) => {
         println!(

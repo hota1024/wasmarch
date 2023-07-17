@@ -6,6 +6,7 @@ mod instances;
 mod label;
 mod result;
 mod runtime;
+mod rust_value;
 mod store;
 pub mod value;
 

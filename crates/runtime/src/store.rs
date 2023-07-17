@@ -1,9 +1,9 @@
-use binary::{ExportDesc, ImportDesc, Module, Type};
+use binary::{ExportDesc, Module, Type};
 
 use crate::{
     instances::{
-        DataInst, ElemInst, ExportInst, ExternalFuncInst, FuncInst, GlobalInst, InternalFuncInst,
-        MemInst, ModuleInst, TableInst,
+        DataInst, ElemInst, ExportInst, FuncInst, GlobalInst, InternalFuncInst, MemInst,
+        ModuleInst, TableInst,
     },
     result::{Error, Result},
     value::ExternalVal,

@@ -19,7 +19,7 @@ impl From<u8> for ValueType {
             0x7E => ValueType::I64,
             0x7D => ValueType::F32,
             0x7C => ValueType::F64,
-            _ => panic!("Invalid value type: {}", value),
+            _ => panic!("Invalid value type: 0x{:02x}", value),
         }
     }
 }

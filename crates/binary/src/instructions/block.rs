@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use types::value_type::ValueType;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -8,6 +9,16 @@ pub struct Block {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockType {
     Empty,
-    Value(ValueType),
+    Value(Vec<ValueType>),
     TypeIndex(u32),
+}
+
+impl BlockType {
+    pub fn result_count(&self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::Value(types) => types.len(),
+            Self::TypeIndex(_) => 1,
+        }
+    }
 }

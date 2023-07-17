@@ -25,13 +25,14 @@ pub enum Instruction {
     },
     Else,
     Br {
-        label_index: u32,
+        level: u32,
     },
     BrIf {
-        label_index: u32,
+        level: u32,
     },
     BrTable {
         label_indexes: Vec<u32>,
+        default_index: u32,
     },
     Return,
     Call {
@@ -50,9 +51,11 @@ pub enum Instruction {
     RefFunc {
         func_index: u32,
     },
-    /* Parametrics */
+    /* Parametric */
     Drop,
-    Select,
+    Select {
+        result_types: Option<Vec<ValueType>>,
+    },
     SelectResult {
         result_type: ValueType,
     },

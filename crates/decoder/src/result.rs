@@ -5,6 +5,9 @@ pub enum Error {
     InvalidMagicHeader,
     InvalidVersion,
     InvalidSectionId(SectionId),
+    InvalidRefType,
+    InvalidTableInstructionId,
+    InvalidSubInstrId, // 0xFC xx
     UnexpectedEof,
 
     InvalidBlockType,
