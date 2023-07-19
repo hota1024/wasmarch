@@ -3,7 +3,9 @@ name = "runtime"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bench]]
+name = "fib"
+harness = false
 
 [dependencies]
 decoder = { path = "../decoder" }
@@ -12,3 +14,5 @@ types = { path = "../types" }
 
 [dev-dependencies]
 wabt = "0.10.0"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+wasmtime = "10.0.1"

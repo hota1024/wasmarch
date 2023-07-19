@@ -1,11 +1,11 @@
 use crate::{Error, Result, SectionId};
 use binary::{
     instruction::Instruction, Block, BlockType, CodeSection, Export, ExportDesc, ExportSection,
-    FuncBody, FunctionSection, Import, ImportDesc, ImportSection, MemArg, Module, Type,
-    TypeSection,
+    FuncBody, FunctionSection, Global, GlobalInitExpr, GlobalSection, Import, ImportDesc,
+    ImportSection, MemArg, Module, Type, TypeSection,
 };
 use std::io::{BufReader, Read};
-use types::{FuncType, RefType, ValueType};
+use types::{FuncType, GlobalType, RefType, ValueType};
 
 pub struct Decoder<R> {
     reader: BufReader<R>,
@@ -49,6 +49,9 @@ impl<R: Read> Decoder<R> {
                 }
                 SectionId::Code => {
                     module.code_section = self.decode_code_section()?;
+                }
+                SectionId::Global => {
+                    module.global_section = self.decode_global_section()?;
                 }
                 SectionId::Export => {
                     module.export_section = self.decode_export_section()?;
@@ -167,6 +170,49 @@ impl<R: Read> Decoder<R> {
 
         // let codes = vec![];
         Ok(codes)
+    }
+
+    fn decode_global_section(&mut self) -> Result<GlobalSection> {
+        let globals = self.read_vec(|d| {
+            let value_type = ValueType::from(d.read_u8()?);
+            let mutable = d.read_u8()? == 0x01;
+
+            let init_expr = d.read_global_init_expr()?;
+
+            Ok(Global {
+                global_type: GlobalType {
+                    value_type,
+                    mutable,
+                },
+                init_expr,
+            })
+        })?;
+
+        Ok(globals)
+    }
+
+    fn read_global_init_expr(&mut self) -> Result<GlobalInitExpr> {
+        let opcode = self.read_u8()?;
+
+        let expr = match opcode {
+            0x41 => Ok(GlobalInitExpr::I32Const {
+                value: self.read_i32()?,
+            }),
+            0x42 => Ok(GlobalInitExpr::I64Const {
+                value: self.read_i64()?,
+            }),
+            0x43 => Ok(GlobalInitExpr::F32Const {
+                value: self.read_f32()?,
+            }),
+            0x44 => Ok(GlobalInitExpr::F64Const {
+                value: self.read_f64()?,
+            }),
+            _ => return Err(Error::InvalidGlobalInitExpr),
+        };
+
+        self.read_u8()?; // 0x0B
+
+        expr
     }
 
     fn decode_export_section(&mut self) -> Result<ExportSection> {

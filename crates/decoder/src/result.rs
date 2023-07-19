@@ -16,6 +16,8 @@ pub enum Error {
 
     InvalidImportDesc,
     InvalidExportDesc,
+
+    InvalidGlobalInitExpr,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

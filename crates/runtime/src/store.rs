@@ -1,4 +1,4 @@
-use binary::{ExportDesc, Module, Type};
+use binary::{ExportDesc, GlobalInitExpr, Module, Type};
 
 use crate::{
     instances::{
@@ -6,7 +6,7 @@ use crate::{
         ModuleInst, TableInst,
     },
     result::{Error, Result},
-    value::ExternalVal,
+    value::{ExternalVal, Val},
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -42,6 +42,20 @@ impl Store {
                     }));
                 }
             }
+        }
+
+        for global in module.global_section {
+            let value = match global.init_expr {
+                GlobalInitExpr::I32Const { value } => Val::from(value),
+                GlobalInitExpr::I64Const { value } => Val::from(value),
+                GlobalInitExpr::F32Const { value } => Val::from(value),
+                GlobalInitExpr::F64Const { value } => Val::from(value),
+            };
+
+            store.globals.push(GlobalInst {
+                global_type: global.global_type,
+                value,
+            });
         }
 
         for export in module.export_section {

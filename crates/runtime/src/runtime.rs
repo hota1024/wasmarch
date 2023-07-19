@@ -2,7 +2,7 @@ use binary::{Block, Instruction};
 
 use crate::{
     frame::Frame,
-    instances::{FuncInst, InternalFuncInst},
+    instances::{global, FuncInst, InternalFuncInst},
     label::{Label, LabelKind},
     store::Store,
     value::{ExternalVal, Val},
@@ -93,10 +93,10 @@ impl Runtime {
 
         self.execute()?;
 
-        println!("value stack");
-        for value in self.value_stack.clone() {
-            println!("{:?}", value);
-        }
+        // println!("value stack");
+        // for value in self.value_stack.clone() {
+        //     println!("{:?}", value);
+        // }
 
         if func.func_type.results.len() > 0 {
             return Ok(self.value_stack.pop().unwrap());
@@ -170,6 +170,8 @@ impl Runtime {
                 Instruction::LocalGet { local_index } => self.r_local_get(local_index)?,
                 Instruction::LocalSet { local_index } => self.r_local_set(local_index)?,
                 Instruction::LocalTee { local_index } => self.r_local_tee(local_index)?,
+                Instruction::GlobalGet { global_index } => self.r_global_get(global_index)?,
+                Instruction::GlobalSet { global_index } => self.r_global_set(global_index)?,
                 Instruction::I32Const { value } => self.value_stack.push(Val::I32(value)),
                 Instruction::I64Const { value } => self.value_stack.push(Val::I64(value)),
                 Instruction::F32Const { value } => self.value_stack.push(Val::F32(value)),
@@ -458,6 +460,24 @@ impl Runtime {
         let frame = self.last_mut_frame()?;
 
         frame.locals[local_index as usize] = value;
+
+        Ok(())
+    }
+
+    fn r_global_get(&mut self, global_index: u32) -> Result<()> {
+        let Some(global) = self.store.globals.get_mut(global_index as usize) else {
+            return Err(Error::GlobalNotFound);
+        };
+
+        self.value_stack.push(global.value.clone());
+
+        Ok(())
+    }
+
+    fn r_global_set(&mut self, global_index: u32) -> Result<()> {
+        let value = pop_value!(self);
+
+        self.store.globals[global_index as usize].value = value;
 
         Ok(())
     }

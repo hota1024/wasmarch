@@ -87,7 +87,19 @@ fn test_call_internal() {
 fn test_fib() {
     let mut instance = instantiate_test_wat!("fib");
 
-    let result = instance.invoke("fib_rec", values![10]).unwrap();
+    let result = instance.invoke("fib_rec", values![20]).unwrap();
 
     assert_eq!(result, Val::from(55));
+}
+
+#[test]
+fn test_global() {
+    let mut instance = instantiate_test_wat!("global");
+
+    let get_10 = instance.invoke("get_global", values![]).unwrap();
+    instance.invoke("set_global", values![20]).unwrap();
+    let get_20 = instance.invoke("get_global", values![]).unwrap();
+
+    assert_eq!(get_10, Val::from(10));
+    assert_eq!(get_20, Val::from(20));
 }

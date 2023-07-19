@@ -17,6 +17,7 @@ pub enum Error {
     IfConditionShouldBeI32,
 
     LocalNotFound,
+    GlobalNotFound,
 
     // invoke
     ExportNotFound(String),

@@ -6,8 +6,8 @@ use types::global_type::GlobalType;
 /// WebAssembly specification: https://webassembly.github.io/spec/core/binary/modules.html#global-section
 #[derive(Clone, Debug, PartialEq)]
 pub struct Global {
-    global_type: GlobalType,
-    init_expr: GlobalInitExpr,
+    pub global_type: GlobalType,
+    pub init_expr: GlobalInitExpr,
 }
 
 /// Global initialization expression.
@@ -15,10 +15,10 @@ pub struct Global {
 /// WebAssembly specification: https://webassembly.github.io/spec/core/syntax/types.html#global-types
 #[derive(Clone, Debug, PartialEq)]
 pub enum GlobalInitExpr {
-    I32Const(i32),
-    I64Const(i64),
-    F32Const(f32),
-    F64Const(f64),
+    I32Const { value: i32 },
+    I64Const { value: i64 },
+    F32Const { value: f32 },
+    F64Const { value: f64 },
 }
 
 /// Global section.
