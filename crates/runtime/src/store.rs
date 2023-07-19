@@ -1,9 +1,9 @@
-use binary::{ExportDesc, GlobalInitExpr, Module, Type};
+use binary::{ElementMode, ExportDesc, GlobalInitExpr, ImportDesc, Module, Type};
 
 use crate::{
     instances::{
-        DataInst, ElemInst, ExportInst, FuncInst, GlobalInst, InternalFuncInst, MemInst,
-        ModuleInst, TableInst,
+        DataInst, ElemInst, ExportInst, ExternalFuncInst, FuncInst, GlobalInst, InternalFuncInst,
+        MemInst, ModuleInst, TableInst,
     },
     result::{Error, Result},
     value::{ExternalVal, Val},
@@ -23,6 +23,23 @@ pub struct Store {
 impl Store {
     pub fn from_module(module: Module) -> Result<Self> {
         let mut store = Store::default();
+
+        for import in module.import_section {
+            match import.desc {
+                ImportDesc::Func(type_idx) => {
+                    let Some(ty) = module.type_section.get(type_idx as usize) else {
+                        return Err(Error::Custom("invalid type index".to_string()))
+                    };
+                    let Type::Func(func_type) = ty;
+                    store.funcs.push(FuncInst::External(ExternalFuncInst {
+                        module: import.module.clone(),
+                        field: import.field.clone(),
+                        func_type: func_type.clone(),
+                    }));
+                }
+                _ => return Err(Error::Custom("".to_string())),
+            }
+        }
 
         for (code_index, type_index) in module.function_section.iter().enumerate() {
             let code = match module.code_section.get(code_index as usize) {
@@ -78,8 +95,47 @@ impl Store {
                         },
                     );
                 }
+                ExportDesc::Mem(mem_index) => {
+                    store.module.exports.insert(
+                        export.name.clone(),
+                        ExportInst {
+                            name: export.name,
+                            value: ExternalVal::MemAddr(mem_index as usize),
+                        },
+                    );
+                }
                 _ => unimplemented!("export {:?}", export.desc),
             }
+        }
+
+        // TODO: table
+        for table in module.table_section {
+            store.tables.push(TableInst {
+                table_type: table,
+                elems: vec![],
+            });
+        }
+
+        for elem in module.element_section {
+            match elem.mode {
+                ElementMode::Active {
+                    table_index,
+                    offset,
+                } => {
+                    store.elems.push(ElemInst {
+                        ref_type: elem.ref_type,
+                        elems: vec![],
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        for memory in module.memory_section {
+            store.mems.push(MemInst {
+                mem_type: memory.limits,
+                data: vec![0u8; 65_536],
+            });
         }
         Ok(store)
     }

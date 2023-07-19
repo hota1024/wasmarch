@@ -5,7 +5,7 @@ use crate::{
         import_section::ImportSection, memory_section::MemorySection, start_section::StartSection,
         type_section::TypeSection,
     },
-    CodeSection,
+    CodeSection, TableSection,
 };
 
 #[derive(Debug, Default, PartialEq)]
@@ -14,6 +14,7 @@ pub struct Module {
     pub type_section: TypeSection,
     pub import_section: ImportSection,
     pub function_section: FunctionSection,
+    pub table_section: TableSection,
     pub memory_section: MemorySection,
     pub global_section: GlobalSection,
     pub export_section: ExportSection,

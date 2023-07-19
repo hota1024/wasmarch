@@ -1,19 +1,24 @@
-use binary::{Block, Instruction};
+use std::mem::size_of;
+
+use binary::{Block, Instruction, MemArg};
 
 use crate::{
     frame::Frame,
-    instances::{global, FuncInst, InternalFuncInst},
+    instances::{ExternalFuncInst, FuncInst, InternalFuncInst},
     label::{Label, LabelKind},
     store::Store,
     value::{ExternalVal, Val},
     Error, Result,
 };
 
+type CallExternalHook = fn(inst: &ExternalFuncInst, args: &Vec<Val>) -> Val;
+
 #[derive(Debug)]
 pub struct Runtime {
     store: Store,
     value_stack: Vec<Val>,
     call_stack: Vec<Frame>,
+    call_external_hook: Option<CallExternalHook>,
 }
 
 macro_rules! pop_value {
@@ -42,13 +47,74 @@ macro_rules! binop {
     }};
 }
 
+macro_rules! mem_load {
+    ($this: ident, $value_variant: ident, $ty: ident, $arg: expr) => {{
+        let addr = match pop_value!($this) {
+            Val::I32(value) => value as u32,
+            _ => return Err(Error::Custom("memory address should be i32".to_string())),
+        };
+        let Some(mem) = $this.store.mems.get_mut(0) else {
+                                                        return Err(Error::InvalidIndexForMem(0));
+                                                    };
+
+        let addr = (addr + $arg.offset) as usize;
+        let end = addr + size_of::<$ty>();
+        let value = $ty::from_le_bytes(mem.data[addr..end].try_into().unwrap());
+        $this.value_stack.push(Val::from(value));
+    }};
+}
+
+macro_rules! mem_store {
+    ($this: ident, $value_variant: ident, $ty: ty, $arg: expr) => {{
+        let value = pop_value!($this);
+        let addr = match pop_value!($this) {
+            Val::I32(value) => value as u32,
+            _ => return Err(Error::Custom("memory address should be i32".to_string())),
+        };
+        let Some(mem) = $this.store.mems.get_mut(0) else {
+                                                        return Err(Error::InvalidIndexForMem(0));
+                                                    };
+
+        match value {
+            Val::$value_variant(value) => {
+                let addr = (addr + $arg.offset) as usize;
+                let bytes = value.to_le_bytes();
+                mem.data[addr..addr + size_of::<$ty>()].copy_from_slice(&bytes);
+            }
+            _ => {}
+        }
+    }};
+}
+
 impl Runtime {
     pub fn new(store: Store) -> Self {
         Self {
             store,
             value_stack: Vec::new(),
             call_stack: Vec::new(),
+            call_external_hook: None,
         }
+    }
+
+    pub fn set_call_external_hook(&mut self, hook: CallExternalHook) {
+        self.call_external_hook = Some(hook);
+    }
+
+    pub fn get_memory(&self, name: &str) -> Result<Vec<u8>> {
+        let Some(export) = self.store.module.exports.get(name) else {
+            return Err(Error::ExportNotFound(name.to_string()));
+        };
+
+        let mem_addr = match export.value {
+            ExternalVal::MemAddr(addr) => addr,
+            _ => return Err(Error::ExpectMemAddr(export.clone())),
+        };
+
+        let Some(mem) = self.store.mems.get(mem_addr) else {
+            return Err(Error::InvalidIndexForMem(mem_addr));
+        };
+
+        Ok(mem.data.clone())
     }
 
     pub fn invoke(&mut self, fn_name: &str, args: &[Val]) -> Result<Val> {
@@ -92,11 +158,6 @@ impl Runtime {
         self.value_stack = vec![];
 
         self.execute()?;
-
-        // println!("value stack");
-        // for value in self.value_stack.clone() {
-        //     println!("{:?}", value);
-        // }
 
         if func.func_type.results.len() > 0 {
             return Ok(self.value_stack.pop().unwrap());
@@ -157,8 +218,7 @@ impl Runtime {
                     self.r_return()?;
                 }
                 Instruction::Call { func_index } => {
-                    self.r_call(func_index)?;
-                    do_increment = false;
+                    do_increment = self.r_call(func_index)?;
                 }
                 // call_indirect
                 // ref_null
@@ -176,6 +236,9 @@ impl Runtime {
                 Instruction::I64Const { value } => self.value_stack.push(Val::I64(value)),
                 Instruction::F32Const { value } => self.value_stack.push(Val::F32(value)),
                 Instruction::F64Const { value } => self.value_stack.push(Val::F64(value)),
+                // load...
+                Instruction::I32Load { mem_arg } => mem_load!(self, I32, i32, mem_arg),
+                Instruction::I32Store { mem_arg } => mem_store!(self, I32, i32, mem_arg),
                 Instruction::I32Eqz | Instruction::I64Eqz => uniop!(self, eqz),
                 Instruction::I32Eq
                 | Instruction::I64Eq
@@ -344,7 +407,7 @@ impl Runtime {
         Ok(())
     }
 
-    fn r_call(&mut self, func_index: u32) -> Result<()> {
+    fn r_call(&mut self, func_index: u32) -> Result<bool> {
         let Some(func) = self.store.funcs.get(func_index as usize).cloned() else {
             return Err(Error::InvalidIndexForFunc(func_index as usize));
         };
@@ -352,11 +415,28 @@ impl Runtime {
         match func {
             FuncInst::Internal(func) => {
                 self.push_call(&func);
-            }
-            _ => unimplemented!(),
-        }
 
-        Ok(())
+                Ok(false)
+            }
+            FuncInst::External(func) => {
+                let mut args = vec![];
+                for _ in 0..func.func_type.params.len() {
+                    args.push(pop_value!(self));
+                }
+                match self.call_external_hook {
+                    Some(hook) => {
+                        let result = hook(&func, &args);
+                        match result {
+                            Val::None => {}
+                            _ => self.value_stack.push(result),
+                        }
+                    }
+                    None => return Err(Error::Custom("call external hook is not set".to_string())),
+                }
+
+                Ok(true)
+            }
+        }
     }
 
     fn r_block(&mut self, block: &Block) -> Result<()> {

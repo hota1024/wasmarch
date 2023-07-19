@@ -18,6 +18,13 @@ pub enum Error {
     InvalidExportDesc,
 
     InvalidGlobalInitExpr,
+    InvalidLimitsKind,
+    InvalidElementKind,
+
+    ExpectedConstExpression,
+    UnsupportedElementPrefix,
+
+    Custom(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

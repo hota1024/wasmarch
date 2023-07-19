@@ -103,3 +103,44 @@ fn test_global() {
     assert_eq!(get_10, Val::from(10));
     assert_eq!(get_20, Val::from(20));
 }
+
+#[test]
+fn test_table() {
+    let mut instance = instantiate_test_wat!("table");
+
+    let should_be_10 = instance.invoke("call_by_index", values![0]).unwrap();
+    assert_eq!(should_be_10, Val::from(10));
+
+    let should_be_20 = instance.invoke("call_by_index", values![1]).unwrap();
+    assert_eq!(should_be_20, Val::from(20));
+}
+
+#[test]
+fn test_memory() {
+    let mut instance = instantiate_test_wat!("memory");
+
+    let memory = instance.get_memory("memory").unwrap();
+    assert_eq!(memory.clone().drain(0..4).as_slice(), [0, 0, 0, 0]);
+
+    instance.invoke("set_memory", values![10]).unwrap();
+    let memory = instance.get_memory("memory").unwrap();
+    assert_eq!(memory.clone().drain(0..4).as_slice(), [10, 0, 0, 0]);
+}
+
+#[test]
+fn test_call_external() {
+    let mut instance = instantiate_test_wat!("call_external");
+    instance.set_call_external_hook(|inst, args| {
+        if inst.module == "env".to_string() && inst.field == "log_i32".to_string() {
+            println!("log: {:?}", args[0]);
+            Val::None
+        } else if inst.module == "env".to_string() && inst.field == "cos".to_string() {
+            Val::from(args[0].into_f32().cos())
+        } else {
+            panic!("cannot hook: {:?}", inst);
+        }
+    });
+
+    let result = instance.invoke("main", values![]).unwrap();
+    println!("result: {:?}", result);
+}

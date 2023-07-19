@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::rust_value::*;
 use types::ValueType;
 
@@ -88,6 +90,20 @@ macro_rules! binop {
     };
 }
 
+macro_rules! into {
+    ($ident: ident, $ty: ty) => {
+        pub fn $ident(&self) -> $ty {
+            match self {
+                Self::I32(v) => *v as $ty,
+                Self::I64(v) => *v as $ty,
+                Self::F32(v) => *v as $ty,
+                Self::F64(v) => *v as $ty,
+                _ => panic!("cannot convert None to {:?}", stringify!($ty)),
+            }
+        }
+    };
+}
+
 impl Val {
     uniop![@int, eqz, clz, ctz, popcnt];
     uniop![@float, abs, neg, ceil, floor, trunc, nearest, sqrt];
@@ -95,6 +111,11 @@ impl Val {
     binop![@all, add, sub, mul, eq, ne];
     binop![@int, div_s, div_u, lt_s, lt_u, gt_s, gt_u, le_s, le_u, ge_s, ge_u, rem_s, rem_u, and, or, xor, shl, shr_s, shr_u, rotl, rotr];
     binop![@float, lt, gt, le, ge, div, min, max, copysign];
+
+    into!(into_i32, i32);
+    into!(into_i64, i64);
+    into!(into_f32, f32);
+    into!(into_f64, f64);
 
     pub fn is_true(&self) -> bool {
         match self {

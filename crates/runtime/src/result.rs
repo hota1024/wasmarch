@@ -8,6 +8,7 @@ pub enum Error {
     InvalidIndexForFunc(usize),
     InvalidIndexForFuncType(usize),
     InvalidIndexForCode(usize),
+    InvalidIndexForMem(usize),
 
     Trapped,
 
@@ -22,6 +23,7 @@ pub enum Error {
     // invoke
     ExportNotFound(String),
     ExpectFuncAddr(ExportInst),
+    ExpectMemAddr(ExportInst),
 
     // operations
     UndefinedBinaryOp,
@@ -29,6 +31,8 @@ pub enum Error {
     EmptyCallStack(String),
 
     UnexpectedEndOfInput,
+
+    Custom(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

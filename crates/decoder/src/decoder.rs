@@ -1,11 +1,13 @@
 use crate::{Error, Result, SectionId};
 use binary::{
-    instruction::Instruction, Block, BlockType, CodeSection, Export, ExportDesc, ExportSection,
-    FuncBody, FunctionSection, Global, GlobalInitExpr, GlobalSection, Import, ImportDesc,
-    ImportSection, MemArg, Module, Type, TypeSection,
+    instruction::Instruction, Block, BlockType, CodeSection, Element, ElementMode, ElementSection,
+    Export, ExportDesc, ExportSection, FuncBody, FunctionSection, Global, GlobalInitExpr,
+    GlobalSection, Import, ImportDesc, ImportSection, MemArg, MemorySection, Module, TableSection,
+    Type, TypeSection,
 };
+use core::panic;
 use std::io::{BufReader, Read};
-use types::{FuncType, GlobalType, RefType, ValueType};
+use types::{FuncType, GlobalType, Limits, MemoryType, RefType, TableType, ValueType};
 
 pub struct Decoder<R> {
     reader: BufReader<R>,
@@ -38,6 +40,7 @@ impl<R: Read> Decoder<R> {
             let (id, _) = result.unwrap();
 
             match id {
+                // SectionId::Custom
                 SectionId::Type => {
                     module.type_section = self.decode_type_section()?;
                 }
@@ -47,8 +50,11 @@ impl<R: Read> Decoder<R> {
                 SectionId::Function => {
                     module.function_section = self.decode_function_section()?;
                 }
-                SectionId::Code => {
-                    module.code_section = self.decode_code_section()?;
+                SectionId::Table => {
+                    module.table_section = self.decode_table_section()?;
+                }
+                SectionId::Memory => {
+                    module.memory_section = self.decode_memory_section()?;
                 }
                 SectionId::Global => {
                     module.global_section = self.decode_global_section()?;
@@ -56,6 +62,15 @@ impl<R: Read> Decoder<R> {
                 SectionId::Export => {
                     module.export_section = self.decode_export_section()?;
                 }
+                // SectionId::Start
+                SectionId::Element => {
+                    module.element_section = self.decode_element_section()?;
+                }
+                SectionId::Code => {
+                    module.code_section = self.decode_code_section()?;
+                }
+                // SectionId::Data
+                // SectionId::DataCount
                 _ => unimplemented!("Section {:?} is not implemented", id),
             }
         };
@@ -144,6 +159,58 @@ impl<R: Read> Decoder<R> {
         Ok(type_indexes)
     }
 
+    fn decode_table_section(&mut self) -> Result<TableSection> {
+        let table = self.read_vec(|d| {
+            Ok(TableType {
+                element_type: d.read_reference_type()?,
+                limits: d.read_limits()?,
+            })
+        })?;
+
+        Ok(table)
+    }
+
+    fn decode_memory_section(&mut self) -> Result<MemorySection> {
+        let memory = self.read_vec(|d| {
+            Ok(MemoryType {
+                limits: d.read_limits()?,
+            })
+        })?;
+
+        Ok(memory)
+    }
+
+    fn decode_element_section(&mut self) -> Result<ElementSection> {
+        let elements = self.read_vec(|d| {
+            let prefix = d.read_size()?;
+
+            let element = match prefix {
+                0 => {
+                    let Instruction::I32Const { value: offset } = d.read_const_expr()? else {
+                        return Err(Error::Custom("element offset should be i32.const x".to_string()));
+                    };
+                    let init = d.read_vec(|d| {
+                        d.read_size()
+                    })?;
+
+                    Element {
+                        ref_type: RefType::FuncRef,
+                        init,
+                        mode: ElementMode::Active {
+                            table_index: 0,
+                            offset,
+                        },
+                    }
+                }
+                _ => return Err(Error::UnsupportedElementPrefix),
+            };
+
+            Ok(element)
+        })?;
+
+        Ok(elements)
+    }
+
     fn decode_code_section(&mut self) -> Result<CodeSection> {
         let codes = self.read_vec(|d| {
             let func_size = d.read_size()?;
@@ -168,7 +235,6 @@ impl<R: Read> Decoder<R> {
             Ok(FuncBody { locals, code: body })
         })?;
 
-        // let codes = vec![];
         Ok(codes)
     }
 
@@ -222,6 +288,9 @@ impl<R: Read> Decoder<R> {
 
             let desc = match desc_kind {
                 0x00 => ExportDesc::Func(d.read_size()?),
+                0x01 => ExportDesc::Table(d.read_size()?),
+                0x02 => ExportDesc::Mem(d.read_size()?),
+                0x03 => ExportDesc::Global(d.read_size()?),
                 _ => return Err(Error::InvalidExportDesc),
             };
 
@@ -229,6 +298,46 @@ impl<R: Read> Decoder<R> {
         })?;
 
         Ok(exports)
+    }
+
+    fn read_const_expr(&mut self) -> Result<Instruction> {
+        let opcode = self.read_u8()?;
+
+        let result = match opcode {
+            0x41 => Ok(Instruction::I32Const {
+                value: self.read_i32()?,
+            }),
+            0x42 => Ok(Instruction::I64Const {
+                value: self.read_i64()?,
+            }),
+            0x43 => Ok(Instruction::F32Const {
+                value: self.read_f32()?,
+            }),
+            0x44 => Ok(Instruction::F64Const {
+                value: self.read_f64()?,
+            }),
+            _ => return Err(Error::ExpectedConstExpression),
+        };
+
+        self.read_u8()?; // 0x0B
+
+        result
+    }
+
+    fn read_limits(&mut self) -> Result<Limits> {
+        let limits = match self.read_u8()? {
+            0x00 => Limits {
+                min: self.read_size()?,
+                max: None,
+            },
+            0x01 => Limits {
+                min: self.read_size()?,
+                max: Some(self.read_size()?),
+            },
+            _ => return Err(Error::InvalidLimitsKind),
+        };
+
+        Ok(limits)
     }
 
     fn read_instructions(&mut self) -> Result<Vec<Instruction>> {

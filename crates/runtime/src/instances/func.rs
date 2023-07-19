@@ -10,6 +10,8 @@ pub struct InternalFuncInst {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExternalFuncInst {
+    pub module: String,
+    pub field: String,
     pub func_type: FuncType,
 }
 
