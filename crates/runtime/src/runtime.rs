@@ -48,7 +48,7 @@ macro_rules! binop {
 }
 
 macro_rules! mem_load {
-    ($this: ident, $value_variant: ident, $ty: ident, $arg: expr) => {{
+    ($this: ident, $value_variant: ident, $ty: ident, $cast_type: ty, $arg: expr) => {{
         let addr = match pop_value!($this) {
             Val::I32(value) => value as u32,
             _ => return Err(Error::Custom("memory address should be i32".to_string())),
@@ -60,12 +60,12 @@ macro_rules! mem_load {
         let addr = (addr + $arg.offset) as usize;
         let end = addr + size_of::<$ty>();
         let value = $ty::from_le_bytes(mem.data[addr..end].try_into().unwrap());
-        $this.value_stack.push(Val::from(value));
+        $this.value_stack.push(Val::from(value as $cast_type as $ty));
     }};
 }
 
 macro_rules! mem_store {
-    ($this: ident, $value_variant: ident, $ty: ty, $arg: expr) => {{
+    ($this: ident, $value_variant: ident, $ty: ty, $cast_type: ty, $arg: expr) => {{
         let value = pop_value!($this);
         let addr = match pop_value!($this) {
             Val::I32(value) => value as u32,
@@ -78,7 +78,7 @@ macro_rules! mem_store {
         match value {
             Val::$value_variant(value) => {
                 let addr = (addr + $arg.offset) as usize;
-                let bytes = value.to_le_bytes();
+                let bytes = (value as $cast_type).to_le_bytes();
                 mem.data[addr..addr + size_of::<$ty>()].copy_from_slice(&bytes);
             }
             _ => {}
@@ -236,9 +236,36 @@ impl Runtime {
                 Instruction::I64Const { value } => self.value_stack.push(Val::I64(value)),
                 Instruction::F32Const { value } => self.value_stack.push(Val::F32(value)),
                 Instruction::F64Const { value } => self.value_stack.push(Val::F64(value)),
-                // load...
-                Instruction::I32Load { mem_arg } => mem_load!(self, I32, i32, mem_arg),
-                Instruction::I32Store { mem_arg } => mem_store!(self, I32, i32, mem_arg),
+
+                Instruction::I32Load { mem_arg } => mem_load!(self, I32, i32, i32, mem_arg),
+                Instruction::I64Load { mem_arg } => mem_load!(self, I64, i64, i64, mem_arg),
+                Instruction::F32Load { mem_arg } => mem_load!(self, F32, f32, f32, mem_arg),
+                Instruction::F64Load { mem_arg } => mem_load!(self, F64, f64, f64, mem_arg),
+
+                Instruction::I32Load8S { mem_arg } => mem_load!(self, I32, i32, i8, mem_arg),
+                Instruction::I32Load8U { mem_arg } => mem_load!(self, I32, i32, u8, mem_arg),
+                Instruction::I32Load16S { mem_arg } => mem_load!(self, I32, i32, i16, mem_arg),
+                Instruction::I32Load16U { mem_arg } => mem_load!(self, I32, i32, u16, mem_arg),
+
+                Instruction::I64Load8S { mem_arg } => mem_load!(self, I64, i64, i8, mem_arg),
+                Instruction::I64Load8U { mem_arg } => mem_load!(self, I64, i64, u8, mem_arg),
+                Instruction::I64Load16S { mem_arg } => mem_load!(self, I64, i64, i16, mem_arg),
+                Instruction::I64Load16U { mem_arg } => mem_load!(self, I64, i64, u16, mem_arg),
+                Instruction::I64Load32S { mem_arg } => mem_load!(self, I64, i64, i32, mem_arg),
+                Instruction::I64Load32U { mem_arg } => mem_load!(self, I64, i64, u32, mem_arg),
+
+                Instruction::I32Store { mem_arg } => mem_store!(self, I32, i32, i32, mem_arg),
+                Instruction::I64Store { mem_arg } => mem_store!(self, I64, i64, i64, mem_arg),
+                Instruction::F32Store { mem_arg } => mem_store!(self, F32, f32, f32, mem_arg),
+                Instruction::F64Store { mem_arg } => mem_store!(self, F64, f64, f64, mem_arg),
+
+                Instruction::I32Store8 { mem_arg } => mem_store!(self, I32, i32, i8, mem_arg),
+                Instruction::I32Store16 { mem_arg } => mem_store!(self, I32, i32, i16, mem_arg),
+
+                Instruction::I64Store8 { mem_arg } => mem_store!(self, I64, i64, i8, mem_arg),
+                Instruction::I64Store16 { mem_arg } => mem_store!(self, I64, i64, i16, mem_arg),
+                Instruction::I64Store32 { mem_arg } => mem_store!(self, I64, i64, i32, mem_arg),
+
                 Instruction::I32Eqz | Instruction::I64Eqz => uniop!(self, eqz),
                 Instruction::I32Eq
                 | Instruction::I64Eq
