@@ -1,0 +1,7 @@
+import std {
+  fn print_ascii();
+};
+
+#start {
+  print_ascii(10);
+}

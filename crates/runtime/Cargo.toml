@@ -16,3 +16,4 @@ types = { path = "../types" }
 wabt = "0.10.0"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 wasmtime = "10.0.1"
+chibiwasm = { path = "../../../../skanehira/chibiwasm" }

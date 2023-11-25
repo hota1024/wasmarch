@@ -1,0 +1,295 @@
+import std {
+  fn newline();
+  fn log_i32(i32);
+  fn log_i32x3(i32, i32, i32);
+  fn random_bool(): i32;
+}
+
+export global grid_width = 54;
+export global grid_height = 54;
+//export global grid_pixel_size = 16.0;
+export global grid_pixel_size = 18.0;
+
+global CELL_LIVE = 0x00aaff;
+global CELL_DEAD = 0xffffff;
+
+global P_BOARD = 0;
+global mut P_NEXT = 0;
+global mut frame = 0;
+
+export mem grid_memory(1);
+
+fn point_to_index(p: i32, x: i32, y: i32): *i32 {
+  (p + (y * grid_width + x) * 4) as *i32
+}
+
+fn get(p: i32, x: i32, y: i32): i32 {
+  if x < 0 || x > grid_width - 1 || y < 0 || y > grid_height - 1 {
+    return CELL_DEAD;
+  };
+
+  *point_to_index(p, x, y)
+}
+
+fn set(p: i32, x: i32, y: i32, color: i32) {
+  *point_to_index(p, x, y) = color
+}
+
+fn count_around(p: i32, x: i32, y: i32, c: i32): i32 {
+  let count = 0;
+
+  if get(p, x + 1, y) == c {
+    count += 1;
+  };
+
+  if get(p, x - 1, y) == c {
+    count += 1;
+  };
+
+  if get(p, x, y + 1) == c {
+    count += 1;
+  };
+
+  if get(p, x, y - 1) == c {
+    count += 1;
+  };
+
+  if get(p, x + 1, y + 1) == c {
+    count += 1;
+  };
+
+  if get(p, x - 1, y + 1) == c {
+    count += 1;
+  };
+
+  if get(p, x + 1, y - 1) == c {
+    count += 1;
+  };
+
+  if get(p, x - 1, y - 1) == c {
+    count += 1;
+  };
+
+  count
+}
+
+fn mem_copy(src: i32, dest: i32) {
+  let x = 0;
+  let y = 0;
+  let c = 0;
+
+  while x < grid_width {
+    y = 0;
+    while y < grid_height {
+      set(dest, x, y, get(src, x, y));
+
+      y += 1;
+    };
+    x += 1;
+  };
+}
+
+export fn grid_frame() {
+  frame += 1;
+
+  @memory_copy(P_NEXT, P_BOARD, grid_width * grid_height * 4);
+
+  let x = 0;
+  let y = 0;
+  let cur = 0;
+  let count = 0;
+  let next_state = 0;
+
+  while x < grid_width {
+    y = 0;
+    while y < grid_height {
+      cur = get(P_BOARD, x, y);
+      count = count_around(P_BOARD, x, y, CELL_LIVE);
+      next_state = 0-1;
+
+      if cur == CELL_LIVE && count < 2 {
+        next_state = CELL_DEAD;
+      };
+
+      if next_state == 0-1 && cur == CELL_LIVE && count > 3 {
+        next_state = CELL_DEAD;
+      };
+
+      if next_state == 0-1 && cur == CELL_DEAD && count == 3 {
+        next_state = CELL_LIVE;
+      };
+
+      if next_state == 0-1 {
+        next_state = cur;
+      };
+
+      set(P_NEXT, x, y, next_state);
+
+      y += 1;
+    };
+    x += 1;
+  };
+
+  @memory_copy(P_BOARD, P_NEXT, grid_width * grid_height * 4);
+}
+
+#start {
+  @memory_grow(1);
+  P_NEXT = grid_width * grid_height * 4;
+  let x = 0;
+  let y = 0;
+
+  while x < grid_width {
+    y = 0;
+    while y < grid_height {
+      set(P_NEXT, x, y, CELL_DEAD);
+      y += 1;
+    };
+    x += 1;
+  };
+
+  // glider gun
+
+  set(P_NEXT, 1, 5, CELL_LIVE);
+  set(P_NEXT, 1, 6, CELL_LIVE);
+  set(P_NEXT, 2, 5, CELL_LIVE);
+  set(P_NEXT, 2, 6, CELL_LIVE);
+
+  set(P_NEXT, 11, 5, CELL_LIVE);
+  set(P_NEXT, 11, 6, CELL_LIVE);
+  set(P_NEXT, 11, 7, CELL_LIVE);
+
+  set(P_NEXT, 12, 4, CELL_LIVE);
+  set(P_NEXT, 12, 8, CELL_LIVE);
+
+  set(P_NEXT, 13, 3, CELL_LIVE);
+  set(P_NEXT, 13, 9, CELL_LIVE);
+  set(P_NEXT, 14, 3, CELL_LIVE);
+  set(P_NEXT, 14, 9, CELL_LIVE);
+
+  set(P_NEXT, 15, 6, CELL_LIVE);
+
+  set(P_NEXT, 16, 4, CELL_LIVE);
+  set(P_NEXT, 16, 8, CELL_LIVE);
+
+  set(P_NEXT, 17, 5, CELL_LIVE);
+  set(P_NEXT, 17, 6, CELL_LIVE);
+  set(P_NEXT, 17, 7, CELL_LIVE);
+
+  set(P_NEXT, 18, 6, CELL_LIVE);
+
+  set(P_NEXT, 21, 3, CELL_LIVE);
+  set(P_NEXT, 21, 4, CELL_LIVE);
+  set(P_NEXT, 21, 5, CELL_LIVE);
+
+  set(P_NEXT, 22, 3, CELL_LIVE);
+  set(P_NEXT, 22, 4, CELL_LIVE);
+  set(P_NEXT, 22, 5, CELL_LIVE);
+
+  set(P_NEXT, 23, 2, CELL_LIVE);
+  set(P_NEXT, 23, 6, CELL_LIVE);
+
+  set(P_NEXT, 25, 1, CELL_LIVE);
+  set(P_NEXT, 25, 2, CELL_LIVE);
+  set(P_NEXT, 25, 6, CELL_LIVE);
+  set(P_NEXT, 25, 7, CELL_LIVE);
+
+  set(P_NEXT, 35, 3, CELL_LIVE);
+  set(P_NEXT, 35, 4, CELL_LIVE);
+
+  set(P_NEXT, 36, 3, CELL_LIVE);
+  set(P_NEXT, 36, 4, CELL_LIVE);
+
+  // galaxy
+
+  let gx = 10;
+  let gy = 2;
+
+  set(P_NEXT, gx + 2, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 4, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 5, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 6, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 7, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 4, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 5, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 6, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 7, gy + 17, CELL_LIVE);
+
+  set(P_NEXT, gx + 9, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 18, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 19, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 20, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 21, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 16, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 17, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 18, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 19, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 20, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 21, CELL_LIVE);
+
+  set(P_NEXT, gx + 5, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 6, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 7, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 8, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 5, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 6, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 7, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 8, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 9, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 10, gy + 24, CELL_LIVE);
+
+  set(P_NEXT, gx + 2, gy + 19, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 20, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 21, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 22, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 2, gy + 24, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 19, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 20, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 21, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 22, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 23, CELL_LIVE);
+  set(P_NEXT, gx + 3, gy + 24, CELL_LIVE);
+
+  // tumblr
+
+  let tx = 13;
+  let ty = 34;
+
+  set(P_NEXT, tx + 0, ty + 3, CELL_LIVE);
+  set(P_NEXT, tx + 0, ty + 4, CELL_LIVE);
+  set(P_NEXT, tx + 0, ty + 5, CELL_LIVE);
+
+  set(P_NEXT, tx + 1, ty + 0, CELL_LIVE);
+  set(P_NEXT, tx + 1, ty + 1, CELL_LIVE);
+  set(P_NEXT, tx + 1, ty + 5, CELL_LIVE);
+
+  set(P_NEXT, tx + 2, ty + 0, CELL_LIVE);
+  set(P_NEXT, tx + 2, ty + 1, CELL_LIVE);
+  set(P_NEXT, tx + 2, ty + 2, CELL_LIVE);
+  set(P_NEXT, tx + 2, ty + 3, CELL_LIVE);
+  set(P_NEXT, tx + 2, ty + 4, CELL_LIVE);
+
+  set(P_NEXT, tx + 4, ty + 0, CELL_LIVE);
+  set(P_NEXT, tx + 4, ty + 1, CELL_LIVE);
+  set(P_NEXT, tx + 4, ty + 2, CELL_LIVE);
+  set(P_NEXT, tx + 4, ty + 3, CELL_LIVE);
+  set(P_NEXT, tx + 4, ty + 4, CELL_LIVE);
+
+  set(P_NEXT, tx + 5, ty + 0, CELL_LIVE);
+  set(P_NEXT, tx + 5, ty + 1, CELL_LIVE);
+  set(P_NEXT, tx + 5, ty + 5, CELL_LIVE);
+
+  set(P_NEXT, tx + 6, ty + 3, CELL_LIVE);
+  set(P_NEXT, tx + 6, ty + 4, CELL_LIVE);
+  set(P_NEXT, tx + 6, ty + 5, CELL_LIVE);
+
+  @memory_copy(P_BOARD, P_NEXT, grid_width * grid_height * 4);
+}
+

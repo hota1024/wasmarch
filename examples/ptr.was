@@ -1,0 +1,18 @@
+import std {
+  fn log_i32(i32);
+}
+
+mem memory(1);
+
+#start {
+  let a: *i32 = 0;
+
+  *a = 10;
+  log_i32(*a);
+
+  *a = 20;
+  log_i32(*a);
+
+  a = 1;
+  log_i32(*a);
+}

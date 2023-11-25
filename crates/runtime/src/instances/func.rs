@@ -15,6 +15,12 @@ pub struct ExternalFuncInst {
     pub func_type: FuncType,
 }
 
+impl ExternalFuncInst {
+    pub fn match_module_field(&self, module: &str, field: &str) -> bool {
+        &self.module == module && &self.field == field
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FuncInst {
     Internal(InternalFuncInst),

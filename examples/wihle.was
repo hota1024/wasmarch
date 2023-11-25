@@ -1,0 +1,13 @@
+import std {
+  fn log_i32(i32);
+}
+
+#start {
+  let i = 0;
+
+  while i < 10 {
+    log_i32(i);
+    i += 1;
+  };
+}
+

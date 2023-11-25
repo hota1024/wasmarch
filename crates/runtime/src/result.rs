@@ -9,6 +9,7 @@ pub enum Error {
     InvalidIndexForFuncType(usize),
     InvalidIndexForCode(usize),
     InvalidIndexForMem(usize),
+    InvalidIndexForGlobal(usize),
 
     Trapped,
 
@@ -24,6 +25,7 @@ pub enum Error {
     ExportNotFound(String),
     ExpectFuncAddr(ExportInst),
     ExpectMemAddr(ExportInst),
+    ExpectGlobalAddr(ExportInst),
 
     // operations
     UndefinedBinaryOp,

@@ -1,0 +1,13 @@
+import std {
+  fn log_i32(i32);
+}
+
+#start {
+  if false {
+    log_i32(0);
+  } else if true {
+    log_i32(1);
+  } else {
+    log_i32(2);
+  };
+}

@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use binary::{Block, Instruction, MemArg};
+use binary::{Block, Instruction};
 
 use crate::{
     frame::Frame,
@@ -13,7 +13,7 @@ use crate::{
 
 type CallExternalHook = fn(inst: &ExternalFuncInst, args: &Vec<Val>) -> Val;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Runtime {
     store: Store,
     value_stack: Vec<Val>,
@@ -117,6 +117,59 @@ impl Runtime {
         Ok(mem.data.clone())
     }
 
+    pub fn get_global(&self, name: &str) -> Result<Val> {
+        let Some(export) = self.store.module.exports.get(name) else {
+            return Err(Error::ExportNotFound(name.to_string()));
+        };
+
+        let global_addr = match export.value {
+            ExternalVal::GlobalAddr(addr) => addr,
+            _ => return Err(Error::ExpectGlobalAddr(export.clone())),
+        };
+
+        let Some(global) = self.store.globals.get(global_addr) else {
+            return Err(Error::InvalidIndexForGlobal(global_addr));
+        };
+
+        Ok(global.value.clone())
+    }
+
+    pub fn get_func(&self, fn_name: &str) -> Result<FuncInst> {
+        let Some(export) = self.store.module.exports.get(fn_name) else {
+            return Err(Error::ExportNotFound(fn_name.to_string()));
+        };
+
+        let func_addr = match export.value {
+            ExternalVal::FuncAddr(addr) => addr,
+            _ => return Err(Error::ExpectFuncAddr(export.clone())),
+        };
+
+        let Some(func) = self.store.funcs.get(func_addr) else {
+            return Err(Error::InvalidIndexForFunc(func_addr));
+        };
+
+        Ok(func.clone())
+    }
+
+    pub fn start(&mut self) -> Result<()> {
+        let Some(func_index) = self.store.start_func_index else {
+            return Ok(())
+        };
+
+        let Some(func) = self.store.funcs.get(func_index as usize) else {
+            return Err(Error::InvalidIndexForFunc(func_index as usize));
+        };
+
+        match func {
+            FuncInst::Internal(internal_func) => {
+                self.invoke_internal(internal_func.clone(), &[]).unwrap()
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok(())
+    }
+
     pub fn invoke(&mut self, fn_name: &str, args: &[Val]) -> Result<Val> {
         let Some(export) = self.store.module.exports.get(fn_name) else {
             return Err(Error::ExportNotFound(fn_name.to_string()));
@@ -188,7 +241,7 @@ impl Runtime {
 
     fn execute(&mut self) -> Result<()> {
         while let Some(instruction) = self.get_current_instruction()? {
-            // println!("{}: {:?}", self.pc()?, instruction);
+            // println!("[runtime] {}: {:?}", self.pc()?, instruction);
             let mut do_increment = true;
 
             match instruction {
@@ -201,13 +254,13 @@ impl Runtime {
                     self.r_loop(&block)?;
                 }
                 Instruction::If { block } => {
-                    self.r_if(&block)?;
+                    do_increment = self.r_if(&block)?;
                 }
                 Instruction::Else => {
                     self.r_else()?;
                 }
                 Instruction::End => {
-                    self.r_end()?;
+                    do_increment = self.r_end()?;
                 }
                 Instruction::Br { level } => {
                     self.r_br(level)?;
@@ -224,7 +277,9 @@ impl Runtime {
                 // ref_null
                 // ref_is_null
                 // ref_func
-                // drop
+                Instruction::Drop => {
+                    pop_value!(self);
+                }
                 // select
                 // select_result
                 Instruction::LocalGet { local_index } => self.r_local_get(local_index)?,
@@ -265,6 +320,9 @@ impl Runtime {
                 Instruction::I64Store8 { mem_arg } => mem_store!(self, I64, i64, i8, mem_arg),
                 Instruction::I64Store16 { mem_arg } => mem_store!(self, I64, i64, i16, mem_arg),
                 Instruction::I64Store32 { mem_arg } => mem_store!(self, I64, i64, i32, mem_arg),
+
+                Instruction::MemoryGrow => self.r_memory_grow()?,
+                Instruction::MemoryCopy => self.r_memory_copy()?,
 
                 Instruction::I32Eqz | Instruction::I64Eqz => uniop!(self, eqz),
                 Instruction::I32Eq
@@ -364,7 +422,9 @@ impl Runtime {
         Ok(())
     }
 
-    fn r_if(&mut self, block: &Block) -> Result<()> {
+    fn r_if(&mut self, block: &Block) -> Result<bool> {
+        let mut do_increment = true;
+
         let Some(condition) = self.value_stack.pop() else {
             return Err(Error::ExpectedValue)
         };
@@ -376,6 +436,7 @@ impl Runtime {
 
             // if end_pc == next_pc {
             self.set_pc(next_pc)?;
+            do_increment = false;
             // } else {
             // self.set_pc(next_pc + 1)?;
             // }
@@ -391,7 +452,7 @@ impl Runtime {
 
         self.last_mut_frame()?.label_stack.push(label);
 
-        Ok(())
+        Ok(do_increment)
     }
 
     fn r_else(&mut self) -> Result<()> {
@@ -404,13 +465,15 @@ impl Runtime {
         Ok(())
     }
 
-    fn r_end(&mut self) -> Result<()> {
+    fn r_end(&mut self) -> Result<bool> {
         let label = self.last_mut_frame()?.label_stack.pop();
+        let do_increment = true;
 
         match label {
             Some(label) => {
                 self.clean_value_stack(label.arity, label.sp)?;
                 self.set_pc(label.pc)?;
+                // do_increment = false;
             }
             None => {
                 let Some(frame) = self.call_stack.pop() else {
@@ -421,7 +484,7 @@ impl Runtime {
             }
         }
 
-        Ok(())
+        Ok(do_increment)
     }
 
     fn r_return(&mut self) -> Result<()> {
@@ -448,7 +511,7 @@ impl Runtime {
             FuncInst::External(func) => {
                 let mut args = vec![];
                 for _ in 0..func.func_type.params.len() {
-                    args.push(pop_value!(self));
+                    args.insert(0, pop_value!(self));
                 }
                 match self.call_external_hook {
                     Some(hook) => {
@@ -464,6 +527,38 @@ impl Runtime {
                 Ok(true)
             }
         }
+    }
+
+    fn r_memory_grow(&mut self) -> Result<()> {
+        let v = pop_value!(self);
+        let mem = self.store.mems.get_mut(0).unwrap();
+        let len = mem.data.len();
+        mem.data.resize(len + v.into_i32() as usize * 65_536, 0);
+
+        self.value_stack.push(Val::I32(len as i32));
+
+        Ok(())
+    }
+
+    fn r_memory_copy(&mut self) -> Result<()> {
+        let n = pop_value!(self).into_i32() as usize;
+        let s = pop_value!(self).into_i32() as usize;
+        let d = pop_value!(self).into_i32() as usize;
+        let mem = self.store.mems.get_mut(0).unwrap();
+
+        if s + n > mem.data.len() || d + n > mem.data.len() {
+            return Err(Error::Custom("memory.copy".to_string()));
+        }
+
+        if n == 0 {
+            return Ok(());
+        }
+
+        for i in 0..n {
+            mem.data[d + i] = mem.data[s + i];
+        }
+
+        Ok(())
     }
 
     fn r_block(&mut self, block: &Block) -> Result<()> {

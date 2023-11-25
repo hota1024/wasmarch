@@ -2,8 +2,8 @@ use crate::{Error, Result, SectionId};
 use binary::{
     instruction::Instruction, Block, BlockType, CodeSection, Element, ElementMode, ElementSection,
     Export, ExportDesc, ExportSection, FuncBody, FunctionSection, Global, GlobalInitExpr,
-    GlobalSection, Import, ImportDesc, ImportSection, MemArg, MemorySection, Module, TableSection,
-    Type, TypeSection,
+    GlobalSection, Import, ImportDesc, ImportSection, MemArg, MemorySection, Module, StartSection,
+    TableSection, Type, TypeSection,
 };
 use core::panic;
 use std::io::{BufReader, Read};
@@ -41,6 +41,7 @@ impl<R: Read> Decoder<R> {
 
             match id {
                 // SectionId::Custom
+                SectionId::Custom => {}
                 SectionId::Type => {
                     module.type_section = self.decode_type_section()?;
                 }
@@ -62,7 +63,9 @@ impl<R: Read> Decoder<R> {
                 SectionId::Export => {
                     module.export_section = self.decode_export_section()?;
                 }
-                // SectionId::Start
+                SectionId::Start => {
+                    module.start_section = self.decode_start_section()?;
+                }
                 SectionId::Element => {
                     module.element_section = self.decode_element_section()?;
                 }
@@ -298,6 +301,12 @@ impl<R: Read> Decoder<R> {
         })?;
 
         Ok(exports)
+    }
+
+    fn decode_start_section(&mut self) -> Result<StartSection> {
+        Ok(StartSection {
+            func_index: Some(self.read_size()?),
+        })
     }
 
     fn read_const_expr(&mut self) -> Result<Instruction> {

@@ -1,4 +1,4 @@
-use core::panic;
+use core::{fmt, panic};
 
 use crate::rust_value::*;
 use types::ValueType;
@@ -317,6 +317,18 @@ impl From<bool> for Val {
             Self::I32(1)
         } else {
             Self::I32(0)
+        }
+    }
+}
+
+impl fmt::Display for Val {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::I32(v) => write!(f, "{}", v),
+            Self::I64(v) => write!(f, "{}", v),
+            Self::F32(v) => write!(f, "{}", v),
+            Self::F64(v) => write!(f, "{}", v),
+            Self::None => write!(f, ""),
         }
     }
 }

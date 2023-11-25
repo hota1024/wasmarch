@@ -1,0 +1,10 @@
+import canvas {
+  fn dot(i32, i32, i32);
+}
+
+export global canvas_width = 700;
+export global canvas_height = 700;
+
+export fn sketch_render() {
+  dot(100, 100, 0xffffff);
+}

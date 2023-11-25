@@ -1,0 +1,13 @@
+[package]
+name = "wasmarch"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.3.17", features = ["derive"] }
+nannou = "0.18.0"
+rand = "0.8.5"
+runtime = { path = "../runtime" }
+types = { path = "../types" }
+wabt = "0.10.0"
+wasc = { path = "../../../wasc" }

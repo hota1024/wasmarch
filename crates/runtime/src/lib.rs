@@ -1,16 +1,19 @@
 use decoder::Decoder;
+use instances::ExternalFuncInst;
 use runtime::Runtime;
+use value::Val;
 
-mod frame;
-mod instances;
-mod label;
-mod result;
-mod runtime;
-mod rust_value;
-mod store;
+pub mod frame;
+pub mod instances;
+pub mod label;
+pub mod result;
+pub mod runtime;
+pub mod rust_value;
+pub mod store;
 pub mod value;
 
 pub use crate::result::*;
+pub use crate::runtime::*;
 
 pub fn instantiate(reader: &[u8]) -> Result<Runtime> {
     let mut decoder = Decoder::new(reader);

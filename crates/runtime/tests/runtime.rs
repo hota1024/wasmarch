@@ -131,10 +131,10 @@ fn test_memory() {
 fn test_call_external() {
     let mut instance = instantiate_test_wat!("call_external");
     instance.set_call_external_hook(|inst, args| {
-        if inst.module == "env".to_string() && inst.field == "log_i32".to_string() {
+        if inst.match_module_field("env", "log_i32") {
             println!("log: {:?}", args[0]);
             Val::None
-        } else if inst.module == "env".to_string() && inst.field == "cos".to_string() {
+        } else if inst.match_module_field("env", "cos") {
             Val::from(args[0].into_f32().cos())
         } else {
             panic!("cannot hook: {:?}", inst);

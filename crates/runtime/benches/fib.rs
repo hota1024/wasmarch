@@ -25,6 +25,9 @@ fn bench_fibs(c: &mut Criterion) {
 
     let mut wasmarch = instantiate_wat!("fib");
 
+    let mut chibiwasm_runtime =
+        chibiwasm::Runtime::from_bytes(include_bytes!("wasm/fib.wasm"), None).unwrap();
+
     let wasmtime_engine = wasmtime::Engine::default();
     let wasmtime_module =
         wasmtime::Module::new(&wasmtime_engine, include_bytes!("wasm/fib.wat")).unwrap();
@@ -45,20 +48,21 @@ fn bench_fibs(c: &mut Criterion) {
         )
         .unwrap();
 
-    for i in [1, 2, 3, 5, 7, 10].iter() {
-        let wasmarch_args = &[runtime::value::Val::I32(*i)];
-        let wasmtime_args = &[wasmtime::Val::I32(*i)];
-
-        group.bench_with_input(BenchmarkId::new("Rust", i), i, |b, i| {
-            b.iter(|| fibonacci(*i));
+    for i in [20].iter() {
+        group.bench_with_input(BenchmarkId::new("wasmarch", i), i, |b, i| {
+            b.iter(|| wasmarch.invoke("fib", &[runtime::value::Val::I32(*i)]));
+        });
+        group.bench_with_input(BenchmarkId::new("chibiwasm", i), i, |b, i| {
+            b.iter(|| chibiwasm_runtime.call("fib".to_string(), vec![chibiwasm::Value::from(*i)]));
         });
         group.bench_with_input(BenchmarkId::new("wasmtime", i), i, |b, i| {
             b.iter(|| {
-                wasmtime_fib.call(&mut wasmtime_store, wasmtime_args, &mut wasmtime_results);
+                wasmtime_fib.call(
+                    &mut wasmtime_store,
+                    &[wasmtime::Val::I32(*i)],
+                    &mut wasmtime_results,
+                )
             });
-        });
-        group.bench_with_input(BenchmarkId::new("Wasmarch", i), i, |b, i| {
-            b.iter(|| wasmarch.invoke("fib", wasmarch_args));
         });
     }
 }

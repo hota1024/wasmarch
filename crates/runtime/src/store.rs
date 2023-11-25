@@ -1,4 +1,4 @@
-use binary::{ElementMode, ExportDesc, GlobalInitExpr, ImportDesc, Module, Type};
+use binary::{ExportDesc, GlobalInitExpr, ImportDesc, Module, Type};
 
 use crate::{
     instances::{
@@ -18,6 +18,7 @@ pub struct Store {
     pub elems: Vec<ElemInst>,
     pub datas: Vec<DataInst>,
     pub module: ModuleInst,
+    pub start_func_index: Option<u32>,
 }
 
 impl Store {
@@ -104,32 +105,41 @@ impl Store {
                         },
                     );
                 }
+                ExportDesc::Global(global_index) => {
+                    store.module.exports.insert(
+                        export.name.clone(),
+                        ExportInst {
+                            name: export.name,
+                            value: ExternalVal::GlobalAddr(global_index as usize),
+                        },
+                    );
+                }
                 _ => unimplemented!("export {:?}", export.desc),
             }
         }
 
         // TODO: table
-        for table in module.table_section {
-            store.tables.push(TableInst {
-                table_type: table,
-                elems: vec![],
-            });
-        }
+        // for table in module.table_section {
+        //     store.tables.push(TableInst {
+        //         table_type: table,
+        //         elems: vec![],
+        //     });
+        // }
 
-        for elem in module.element_section {
-            match elem.mode {
-                ElementMode::Active {
-                    table_index,
-                    offset,
-                } => {
-                    store.elems.push(ElemInst {
-                        ref_type: elem.ref_type,
-                        elems: vec![],
-                    });
-                }
-                _ => {}
-            }
-        }
+        // for elem in module.element_section {
+        //     match elem.mode {
+        //         ElementMode::Active {
+        //             table_index,
+        //             offset,
+        //         } => {
+        //             store.elems.push(ElemInst {
+        //                 ref_type: elem.ref_type,
+        //                 elems: vec![],
+        //             });
+        //         }
+        //         _ => {}
+        //     }
+        // }
 
         for memory in module.memory_section {
             store.mems.push(MemInst {
@@ -137,6 +147,9 @@ impl Store {
                 data: vec![0u8; 65_536],
             });
         }
+
+        store.start_func_index = module.start_section.func_index;
+
         Ok(store)
     }
 }
